@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/expensas-plus/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="Gestión de expensas para consorcios - 100% offline" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ExpensasPlus" />
+    <title>ExpensasPlus</title>
+    <script type="module" crossorigin src="/expensas-plus/assets/index-B0G0djVI.js"></script>
+    <link rel="stylesheet" crossorigin href="/expensas-plus/assets/index-BezHzdEi.css">
+  <link rel="manifest" href="/expensas-plus/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/expensas-plus/registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Polyfills para Safari iOS < 15.4
+         .at() no existe en Safari 15.3 e inferiores;
+         su ausencia provoca un TypeError que deja la pantalla en blanco -->
+    <script>
+      if (![].at) {
+        [Array, String, Int8Array, Uint8Array, Uint8ClampedArray,
+         Int16Array, Uint16Array, Int32Array, Uint32Array,
+         Float32Array, Float64Array].forEach(function(C) {
+          if (C && C.prototype && !C.prototype.at) {
+            Object.defineProperty(C.prototype, 'at', {
+              value: function(n) {
+                n = Math.trunc(n) || 0;
+                if (n < 0) n += this.length;
+                if (n < 0 || n >= this.length) return undefined;
+                return this[n];
+              },
+              writable: true, configurable: true
+            });
+          }
+        });
+      }
+
+      // Muestra errores críticos visibles si React no llega a montar
+      window.addEventListener('error', function(e) {
+        var root = document.getElementById('root');
+        if (root && !root.firstChild) {
+          root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">'
+            + '<strong>Error al cargar la app</strong><br>'
+            + (e.message || 'Error desconocido') + '<br>'
+            + '<small>' + (e.filename ? e.filename.split('/').pop() : '') + ':' + (e.lineno || '') + '</small>'
+            + '</div>';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var root = document.getElementById('root');
+        if (root && !root.firstChild) {
+          root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">'
+            + '<strong>Error al cargar la app</strong><br>'
+            + (e.reason && e.reason.message ? e.reason.message : String(e.reason))
+            + '</div>';
+        }
+      });
+    </script>
+
+  </body>
+</html>
