@@ -35,7 +35,8 @@ export default function App() {
     <div className="app">
       <nav className="sidebar">
         <div className="sidebar-brand">
-          <span className="brand-icon">🏢</span>
+          {/* LOGO: reemplazá este div por <img src="logo.png" className="sidebar-logo-img" alt="Logo" /> */}
+          <div className="sidebar-logo-mark">E</div>
           <span className="brand-name">ExpensasPlus</span>
         </div>
         <ul className="nav-list">
@@ -62,7 +63,8 @@ export default function App() {
             <div className="home-header">
               {/* LOGO: reemplazá este div por <img src="logo.png" className="app-logo" alt="Logo" />
                   cuando tengas la imagen definitiva */}
-              <div className="logo-placeholder">LOGO</div>
+              <div className="logo-placeholder">E</div>
+              <h1 className="home-title">ExpensasPlus</h1>
               <p className="home-slogan">Sistema de gestión de expensas</p>
             </div>
             <div className="home-grid">
