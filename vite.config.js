@@ -4,6 +4,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   base: '/expensas-plus/',
+  build: {
+    // Apunta a Safari 14 para que esbuild transpile sintaxis no soportada
+    // en iOS anteriores a 15.4 (class fields privados, etc.)
+    target: ['es2019', 'safari14', 'chrome87', 'firefox78', 'edge88']
+  },
   server: {
     host: '0.0.0.0'
   },

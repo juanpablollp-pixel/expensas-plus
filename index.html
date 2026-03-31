@@ -13,6 +13,51 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Polyfills para Safari iOS < 15.4
+         .at() no existe en Safari 15.3 e inferiores;
+         su ausencia provoca un TypeError que deja la pantalla en blanco -->
+    <script>
+      if (![].at) {
+        [Array, String, Int8Array, Uint8Array, Uint8ClampedArray,
+         Int16Array, Uint16Array, Int32Array, Uint32Array,
+         Float32Array, Float64Array].forEach(function(C) {
+          if (C && C.prototype && !C.prototype.at) {
+            Object.defineProperty(C.prototype, 'at', {
+              value: function(n) {
+                n = Math.trunc(n) || 0;
+                if (n < 0) n += this.length;
+                if (n < 0 || n >= this.length) return undefined;
+                return this[n];
+              },
+              writable: true, configurable: true
+            });
+          }
+        });
+      }
+
+      // Muestra errores críticos visibles si React no llega a montar
+      window.addEventListener('error', function(e) {
+        var root = document.getElementById('root');
+        if (root && !root.firstChild) {
+          root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">'
+            + '<strong>Error al cargar la app</strong><br>'
+            + (e.message || 'Error desconocido') + '<br>'
+            + '<small>' + (e.filename ? e.filename.split('/').pop() : '') + ':' + (e.lineno || '') + '</small>'
+            + '</div>';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var root = document.getElementById('root');
+        if (root && !root.firstChild) {
+          root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">'
+            + '<strong>Error al cargar la app</strong><br>'
+            + (e.reason && e.reason.message ? e.reason.message : String(e.reason))
+            + '</div>';
+        }
+      });
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
