@@ -16,30 +16,35 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo192.png'],
+      includeAssets: ['favicon.svg', 'icon-512.png', 'icon-180.png', 'icon-167.png'],
       manifest: {
         name: 'ExpensasPlus',
         short_name: 'ExpensasPlus',
         description: 'Gestión de expensas para consorcios',
-        theme_color: '#2563eb',
-        background_color: '#ffffff',
+        theme_color: '#0f0f0f',
+        background_color: '#0f0f0f',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/expensas-plus/',
         start_url: '/expensas-plus/',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
+            src: 'icon-167.png',
+            sizes: '167x167',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'icon-180.png',
+            sizes: '180x180',
+            type: 'image/png'
+          },
+          {
+            src: 'icon-512.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

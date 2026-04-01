@@ -100,9 +100,11 @@ export default function App() {
         {!active ? (
           <div className="home-screen">
             <div className="home-header">
-              {/* LOGO: reemplazá este div por <img src="logo.png" className="app-logo" alt="Logo" />
-                  cuando tengas la imagen definitiva */}
-              <div className="logo-placeholder">E</div>
+              <img
+                src="/expensas-plus/icon-512.png"
+                alt="ExpensasPlus"
+                style={{ width: '80px', height: '80px', borderRadius: '20px' }}
+              />
               <h1 className="home-title">ExpensasPlus</h1>
               <p className="home-slogan">Sistema de gestión de expensas</p>
             </div>
