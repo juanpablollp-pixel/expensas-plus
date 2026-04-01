@@ -121,23 +121,24 @@ function addHeader(doc, pageWidth, logoExpensas, docType, periodLine, dateLine) 
   // Logo de la app a la izquierda (logo-expensas.png).
   // Reemplazá la carga por la imagen definitiva cuando esté disponible.
   if (logoExpensas) {
-    const fit    = fitInBounds(logoExpensas.dims.w, logoExpensas.dims.h, 70, 25)
+    const fit    = fitInBounds(logoExpensas.dims.w, logoExpensas.dims.h, 90, 32)
     const logoX  = HX + 6
     const logoY  = HY + (HH - fit.h) / 2
     try { doc.addImage(logoExpensas.b64, 'PNG', logoX, logoY, fit.w, fit.h) }
     catch { /* omitir si falla */ }
   }
 
-  // Texto derecho: tipo de documento, período, fecha
+  // Texto derecho centrado verticalmente: tipo de documento, período, fecha
+  const midY = HY + HH / 2
   doc.setTextColor(...C.white)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text(docType, HX + HW - 6, HY + 13, { align: 'right' })
+  doc.setFontSize(9)
+  doc.text(docType, HX + HW - 6, midY - 7, { align: 'right' })
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  if (periodLine) doc.text(periodLine, HX + HW - 6, HY + 22, { align: 'right' })
-  if (dateLine)   doc.text(dateLine,   HX + HW - 6, HY + 30, { align: 'right' })
+  doc.setFontSize(8)
+  if (periodLine) doc.text(periodLine, HX + HW - 6, midY,     { align: 'right' })
+  if (dateLine)   doc.text(dateLine,   HX + HW - 6, midY + 7, { align: 'right' })
 
   return HY + HH + 7
 }
@@ -201,8 +202,10 @@ function addTotalBox(doc, pageWidth, startY, lines) {
   doc.setLineWidth(0.4)
   doc.roundedRect(BX, startY, BW, BH, 8, 8)
 
+  const boxCenter  = startY + BH / 2
+  const totalTextH = (lines.length - 1) * 8
   lines.forEach((line, i) => {
-    const y = startY + 7 + i * 8
+    const y = boxCenter - totalTextH / 2 + i * 8
     doc.setTextColor(...C.accent)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(line.big ? 12 : 9)
@@ -289,13 +292,13 @@ function tableOptions(extraOpts = {}) {
       fillColor:   C.dark,
       textColor:   C.white,
       fontStyle:   'bold',
-      fontSize:    8,
+      fontSize:    7,
       cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
       fillColor:   C.white,
       textColor:   C.textDark,
-      fontSize:    9,
+      fontSize:    7.5,
       lineColor:   C.border,
       lineWidth:   0.1,
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
