@@ -3,24 +3,23 @@ import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { getAdminConfig } from '../db'
 
-// ── Paleta de colores ────────────────────────────────────────────────────────
-// Cada valor es [R, G, B] para usar directamente en setFillColor / setTextColor
+// ── Paleta de colores (fondo claro) ─────────────────────────────────────────
 const C = {
-  bg:          [15,  15,  15],   // #0f0f0f  fondo general
-  card:        [26,  26,  26],   // #1a1a1a  cards / footer
-  card2:       [36,  36,  36],   // #242424  filas alternas
-  border:      [51,  51,  51],   // #333333  bordes sutiles
+  bg:          [255, 255, 255],  // #ffffff  fondo general
+  card:        [248, 248, 248],  // #f8f8f8  secciones / footer
+  card2:       [243, 243, 243],  // #f3f3f3  filas alternas
+  border:      [224, 224, 224],  // #e0e0e0  bordes sutiles
   accent:      [108, 99,  255],  // #6c63ff  violeta principal
-  accentSoft:  [29,  28,  51],   // rgba(108,99,255,0.15) sobre #0f0f0f
-  text:        [240, 240, 240],  // #f0f0f0  texto principal
-  textSec:     [160, 160, 160],  // #a0a0a0  texto secundario
+  accentSoft:  [240, 238, 255],  // #f0eeff  fondo totales
+  text:        [26,  26,  26],   // #1a1a1a  texto principal
+  textSec:     [102, 102, 102],  // #666666  texto secundario
   white:       [255, 255, 255],
   success:     [34,  197, 94],   // #22c55e
-  successSoft: [18,  42,  27],   // rgba(34,197,94,0.15) sobre #0f0f0f
+  successSoft: [220, 252, 231],  // #dcfce7  verde suave
   danger:      [239, 68,  68],   // #ef4444
-  dangerSoft:  [49,  23,  23],   // rgba(239,68,68,0.15) sobre #0f0f0f
+  dangerSoft:  [254, 226, 226],  // #fee2e2  rojo suave
   warning:     [245, 158, 11],   // #f59e0b
-  warningSoft: [50,  36,  15],   // rgba(245,158,11,0.15) sobre #0f0f0f
+  warningSoft: [254, 243, 199],  // #fef3c7  amarillo suave
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -42,59 +41,62 @@ function formatPeriodo(periodo) {
   return `${meses[parseInt(month) - 1]} ${year}`
 }
 
-/** Carga una imagen pública como base64. Devuelve null si no existe. */
+/** Carga una imagen pública como base64. Devuelve null si falla o no existe. */
 async function loadImageAsBase64(url) {
   try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const blob = await res.blob()
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const blob = await r.blob()
     return new Promise(resolve => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result)
-      reader.onerror   = () => resolve(null)
-      reader.readAsDataURL(blob)
+      const fr = new FileReader()
+      fr.onload  = () => resolve(fr.result)
+      fr.onerror = () => resolve(null)
+      fr.readAsDataURL(blob)
     })
   } catch {
     return null
   }
 }
 
-/** Pinta el fondo oscuro de toda la página. */
-function fillPageBg(doc, pageWidth, pageHeight) {
-  doc.setFillColor(...C.bg)
-  doc.rect(0, 0, pageWidth, pageHeight, 'F')
-}
-
 /**
- * Encabezado dark-mode: recuadro violeta redondeado con logo y datos de período.
+ * Encabezado: banda violeta redondeada.
+ * Izquierda: logo de la app (icon-512.png).
+ * Centro: "ExpensasPlus" bold 18pt.
+ * Derecha: tipo de documento, período y fecha.
  * Retorna la Y donde empieza el contenido siguiente.
  */
-function addHeader(doc, pageWidth, _title, subtitle, rightLine1, rightLine2) {
-  const HX = 14, HY = 10, HW = pageWidth - 28, HH = 32
+function addHeader(doc, pageWidth, logoApp, docType, periodLine, dateLine) {
+  const HX = 14, HY = 10, HW = pageWidth - 28, HH = 42
 
   doc.setFillColor(...C.accent)
-  doc.roundedRect(HX, HY, HW, HH, 6, 6, 'F')
+  doc.roundedRect(HX, HY, HW, HH, 8, 8, 'F')
 
-  // LOGO APP: reemplazá las dos líneas de abajo por doc.addImage(logoBase64, 'PNG', HX+6, HY+7, 18, 18)
-  //           cuando tengas la imagen definitiva del logo de la app.
-  doc.setFontSize(16)
+  // Logo de la app a la izquierda (icon-512.png).
+  // Si falla la carga, se omite silenciosamente.
+  if (logoApp) {
+    try {
+      doc.addImage(logoApp, 'PNG', HX + 5, HY + 3, 16, 16)
+    } catch { /* omitir */ }
+  }
+
+  // "ExpensasPlus" centrado
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
   doc.setTextColor(...C.white)
-  doc.text('ExpensasPlus', HX + 6, HY + 13)
+  doc.text('ExpensasPlus', HX + HW / 2, HY + 16, { align: 'center' })
 
-  doc.setFontSize(9)
+  // Columna derecha: tipo de doc, período y fecha
   doc.setFont('helvetica', 'normal')
-  doc.text(subtitle, HX + 6, HY + 22)
-
   doc.setFontSize(9)
-  doc.text(rightLine1, HX + HW - 4, HY + 13, { align: 'right' })
-  doc.text(rightLine2, HX + HW - 4, HY + 22, { align: 'right' })
+  doc.text(docType,    HX + HW - 5, HY + 14, { align: 'right' })
+  if (periodLine) doc.text(periodLine, HX + HW - 5, HY + 22, { align: 'right' })
+  if (dateLine)   doc.text(dateLine,   HX + HW - 5, HY + 30, { align: 'right' })
 
   return HY + HH + 8
 }
 
 /**
- * Recuadro de datos del inquilino dark-mode.
+ * Recuadro de datos del inquilino (fondo claro).
  * Retorna la Y siguiente.
  */
 function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabel, rightLines) {
@@ -109,59 +111,53 @@ function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabe
   doc.setLineWidth(0.3)
   doc.roundedRect(BX, startY, BW, BH, 6, 6)
 
-  const col2 = BX + BW / 2 + 10
+  const col2   = BX + BW / 2 + 10
   const labelY = startY + 8
 
-  // Columna izquierda
+  function drawLabeledLines(lines, x) {
+    lines.forEach((line, i) => {
+      const y = labelY + 5 + i * LINE_H
+      const colonIdx = line.indexOf(': ')
+      if (colonIdx > 0) {
+        const lbl = line.slice(0, colonIdx + 2)
+        const val = line.slice(colonIdx + 2)
+        doc.setTextColor(...C.textSec)
+        doc.text(lbl, x, y)
+        doc.setTextColor(...C.text)
+        doc.text(val, x + doc.getTextWidth(lbl), y)
+      } else {
+        doc.setTextColor(...C.text)
+        doc.text(line, x, y)
+      }
+    })
+  }
+
   doc.setFontSize(8)
+
+  // Columna izquierda
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C.accent)
   doc.text(leftLabel, BX + 6, labelY)
   doc.setFont('helvetica', 'normal')
-  leftLines.forEach((line, i) => {
-    const isLabel = line.includes(':')
-    const [lbl, ...rest] = line.split(': ')
-    if (isLabel && rest.length) {
-      doc.setTextColor(...C.textSec)
-      doc.text(lbl + ': ', BX + 6, labelY + 5 + i * LINE_H)
-      doc.setTextColor(...C.text)
-      const lblW = doc.getTextWidth(lbl + ': ')
-      doc.text(rest.join(': '), BX + 6 + lblW, labelY + 5 + i * LINE_H)
-    } else {
-      doc.setTextColor(...C.text)
-      doc.text(line, BX + 6, labelY + 5 + i * LINE_H)
-    }
-  })
+  drawLabeledLines(leftLines, BX + 6)
 
   // Columna derecha
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C.accent)
   doc.text(rightLabel, col2, labelY)
   doc.setFont('helvetica', 'normal')
-  rightLines.forEach((line, i) => {
-    const isLabel = line.includes(':')
-    const [lbl, ...rest] = line.split(': ')
-    if (isLabel && rest.length) {
-      doc.setTextColor(...C.textSec)
-      doc.text(lbl + ': ', col2, labelY + 5 + i * LINE_H)
-      doc.setTextColor(...C.text)
-      const lblW = doc.getTextWidth(lbl + ': ')
-      doc.text(rest.join(': '), col2 + lblW, labelY + 5 + i * LINE_H)
-    } else {
-      doc.setTextColor(...C.text)
-      doc.text(line, col2, labelY + 5 + i * LINE_H)
-    }
-  })
+  drawLabeledLines(rightLines, col2)
 
   return startY + BH + 7
 }
 
 /**
- * Recuadro de total dark-mode: fondo accentSoft, borde violeta.
+ * Recuadro de totales: fondo #f0eeff, borde violeta.
  */
 function addTotalBox(doc, pageWidth, startY, lines) {
-  // lines: [{ label, value, big }]
+  // lines: [{ label, value, big? }]
   const BX = 14, BW = pageWidth - 28, BH = 8 + lines.length * 7
+
   doc.setFillColor(...C.accentSoft)
   doc.roundedRect(BX, startY, BW, BH, 6, 6, 'F')
   doc.setDrawColor(...C.accent)
@@ -185,37 +181,36 @@ function addTotalBox(doc, pageWidth, startY, lines) {
 }
 
 /**
- * Pie de página dark-mode con logo del administrador y datos en dos columnas.
- * logoAdmin: base64 string o null.
+ * Pie de página: fondo #f8f8f8, línea superior violeta.
+ * Muestra logo del administrador a la izquierda y datos en dos columnas.
  */
 function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
   const FH = 54
   const FY = pageHeight - FH - 8
   const FX = 14, FW = pageWidth - 28
 
-  // Fondo del pie
+  // Fondo claro
   doc.setFillColor(...C.card)
   doc.roundedRect(FX, FY, FW, FH, 6, 6, 'F')
-
-  // Borde superior violeta
-  doc.setDrawColor(...C.accent)
-  doc.setLineWidth(0.8)
-  doc.line(FX, FY, FX + FW, FY)
-  doc.setLineWidth(0.2)
   doc.setDrawColor(...C.border)
+  doc.setLineWidth(0.2)
   doc.roundedRect(FX, FY, FW, FH, 6, 6)
+
+  // Línea superior violeta 2px
+  doc.setDrawColor(...C.accent)
+  doc.setLineWidth(0.7)
+  doc.line(FX, FY, FX + FW, FY)
 
   let textStartX = FX + 6
 
-  // LOGO ADMINISTRADOR: coloca el archivo logo-admin.png en public/
-  // para que aparezca aquí automáticamente.
+  // Logo del administrador a la izquierda.
+  // Colocá el archivo logo-admin.png en public/ para que aparezca aquí.
   if (logoAdmin) {
     try {
-      doc.addImage(logoAdmin, 'PNG', FX + 6, FY + 8, 30, 15, '', 'FAST')
-      textStartX = FX + 42
-    } catch {
-      // continuar sin logo si falla
-    }
+      // Máximo 25x12mm proporcional
+      doc.addImage(logoAdmin, 'PNG', FX + 6, FY + 6, 25, 12, '', 'FAST')
+      textStartX = FX + 36
+    } catch { /* omitir si falla */ }
   }
 
   const col1X = textStartX
@@ -223,16 +218,16 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
 
   doc.setFontSize(8)
 
-  // Nombre del administrador en bold
+  // Nombre administrador en bold
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...C.text)
   doc.text(footer.administrador || '', col1X, FY + 12)
 
-  // Datos columna izquierda
+  // Columna izquierda
   doc.setFont('helvetica', 'normal')
   const leftFields = [
-    ['CUIT', footer.cuit],
-    ['Tel',  footer.telefono],
+    ['CUIT',  footer.cuit],
+    ['Tel',   footer.telefono],
     ['Email', footer.email],
   ]
   leftFields.forEach(([lbl, val], i) => {
@@ -240,11 +235,10 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
     doc.setTextColor(...C.textSec)
     doc.text(`${lbl}: `, col1X, y)
     doc.setTextColor(...C.text)
-    const lblW = doc.getTextWidth(`${lbl}: `)
-    doc.text(val || '', col1X + lblW, y)
+    doc.text(val || '', col1X + doc.getTextWidth(`${lbl}: `), y)
   })
 
-  // Datos columna derecha
+  // Columna derecha
   const rightFields = [
     ['CBU',   footer.cbu],
     ['Alias', footer.alias],
@@ -255,71 +249,63 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
     doc.setTextColor(...C.textSec)
     doc.text(`${lbl}: `, col2X, y)
     doc.setTextColor(...C.text)
-    const lblW = doc.getTextWidth(`${lbl}: `)
-    const maxW = FX + FW - col2X - lblW - 4
-    const lines = doc.splitTextToSize(val || '', maxW)
-    doc.text(lines[0] || '', col2X + lblW, y)
+    const maxW = FX + FW - col2X - doc.getTextWidth(`${lbl}: `) - 4
+    const wrapped = doc.splitTextToSize(val || '', maxW)
+    doc.text(wrapped[0] || '', col2X + doc.getTextWidth(`${lbl}: `), y)
   })
 }
 
-/** Opciones comunes de dark-mode para autoTable. */
-function darkTableOptions(doc, pageWidth, pageHeight, extraOpts = {}) {
+/** Opciones comunes de tabla (tema claro). */
+function tableOptions(extraOpts = {}) {
   return {
     theme: 'plain',
     headStyles: {
-      fillColor: C.accent,
-      textColor: C.white,
-      fontStyle: 'bold',
-      fontSize: 8,
+      fillColor:   C.accent,
+      textColor:   C.white,
+      fontStyle:   'bold',
+      fontSize:    8,
       cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
-      fillColor: C.card,
-      textColor: C.text,
-      fontSize: 8,
-      lineColor: C.border,
-      lineWidth: 0.1,
+      fillColor:   C.bg,
+      textColor:   C.text,
+      fontSize:    8,
+      lineColor:   C.border,
+      lineWidth:   0.1,
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
     },
     alternateRowStyles: { fillColor: C.card2 },
     tableLineColor: C.border,
     tableLineWidth: 0.1,
-    // Rellena el fondo en páginas nuevas generadas por autoTable
-    willDrawPage(data) {
-      if (data.pageNumber > 1) {
-        fillPageBg(doc, pageWidth, pageHeight)
-      }
-    },
     ...extraOpts,
   }
 }
 
 // ── PDF Inquilino ─────────────────────────────────────────────────────────────
 export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, gastosParticulares, totalInquilinos) {
-  const [footer, logoAdmin] = await Promise.all([
+  const [footer, logoApp, logoAdmin] = await Promise.all([
     resolveFooter(),
+    loadImageAsBase64('/expensas-plus/icon-512.png'),
     loadImageAsBase64('/expensas-plus/logo-admin.png'),
   ])
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-
-  fillPageBg(doc, pageWidth, pageHeight)
+  const FOOTER_RESERVED = 65
 
   let currentY = addHeader(
-    doc, pageWidth,
-    'ExpensasPlus',
+    doc, pageWidth, logoApp,
     'Liquidación de Expensas',
     `Período: ${formatPeriodo(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
-  // Recuadro de datos del inquilino
-  const domMaxW = (pageWidth - 28) / 2 - 16
+  // Datos del inquilino
   doc.setFontSize(8)
+  const domMaxW = (pageWidth - 28) / 2 - 16
   const domLines = inquilino.domicilio
-    ? doc.splitTextToSize(`${inquilino.domicilio}`, domMaxW)
+    ? doc.splitTextToSize(inquilino.domicilio, domMaxW)
     : ['-']
 
   currentY = addInquilinoBox(
@@ -336,10 +322,9 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     ]
   )
 
-  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight)
-  const FOOTER_RESERVED = 65
+  const opts = tableOptions()
 
-  // ── Cargos generales
+  // Cargos generales
   if (gastosGenerales.length > 0) {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
@@ -348,7 +333,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY += 4
 
     autoTable(doc, {
-      ...tableOpts,
+      ...opts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Su parte']],
       body: gastosGenerales.map(g => [
@@ -372,7 +357,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // ── Cargos particulares
+  // Cargos particulares
   if (gastosParticulares.length > 0) {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
@@ -381,7 +366,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY += 4
 
     autoTable(doc, {
-      ...tableOpts,
+      ...opts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
       body: gastosParticulares.map(g => [
@@ -403,8 +388,8 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // ── Total
-  const totalGeneral   = gastosGenerales.reduce((s, g) => s + Number(g.importe) / totalInquilinos, 0)
+  // Total
+  const totalGeneral    = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / totalInquilinos, 0)
   const totalParticular = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
   addTotalBox(doc, pageWidth, currentY, [
     { label: 'Total a pagar', value: formatCurrency(totalGeneral + totalParticular), big: true },
@@ -416,8 +401,9 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
 
 // ── PDF Historial ─────────────────────────────────────────────────────────────
 export async function generateHistorialPDF(periodo, gastos, inquilinos, serviciosMap) {
-  const [footer, logoAdmin] = await Promise.all([
+  const [footer, logoApp, logoAdmin] = await Promise.all([
     resolveFooter(),
+    loadImageAsBase64('/expensas-plus/icon-512.png'),
     loadImageAsBase64('/expensas-plus/logo-admin.png'),
   ])
 
@@ -427,21 +413,18 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
   const FOOTER_RESERVED = 65
   const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
 
-  fillPageBg(doc, pageWidth, pageHeight)
-
   let currentY = addHeader(
-    doc, pageWidth,
-    'ExpensasPlus',
+    doc, pageWidth, logoApp,
     'Detalle Completo de Período',
     `Período: ${formatPeriodo(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
-  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight)
+  const opts       = tableOptions()
   const generales   = gastos.filter(g => g.tipo === 'general')
   const particulares = gastos.filter(g => g.tipo === 'particular')
 
-  // ── Cargos generales
+  // Cargos generales
   if (generales.length > 0) {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
@@ -452,7 +435,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     const suParte = importe => formatCurrency(importe / (inquilinos.length || 1))
 
     autoTable(doc, {
-      ...tableOpts,
+      ...opts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe Total', 'Inquilino', 'Su Parte']],
       body: generales.flatMap(g =>
@@ -480,9 +463,9 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // ── Cargos particulares
+  // Cargos particulares
   if (particulares.length > 0) {
-    if (currentY + 20 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
+    if (currentY + 20 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
@@ -491,7 +474,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     currentY += 4
 
     autoTable(doc, {
-      ...tableOpts,
+      ...opts,
       startY: currentY,
       head: [['Inquilino', 'Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
       body: particulares.map(g => {
@@ -511,15 +494,15 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // ── Totales finales
-  if (currentY + 32 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
+  // Totales
+  if (currentY + 32 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
-  const totGen = generales.reduce((s, g)   => s + Number(g.importe), 0)
-  const totPar = particulares.reduce((s, g) => s + Number(g.importe), 0)
+  const totGen = generales.reduce((s, g)    => s + Number(g.importe), 0)
+  const totPar = particulares.reduce((s, g)  => s + Number(g.importe), 0)
   addTotalBox(doc, pageWidth, currentY, [
-    { label: 'Total Cargos Generales',   value: formatCurrency(totGen) },
+    { label: 'Total Cargos Generales',    value: formatCurrency(totGen) },
     { label: 'Total Cargos Particulares', value: formatCurrency(totPar) },
-    { label: 'TOTAL PERÍODO',            value: formatCurrency(totGen + totPar), big: true },
+    { label: 'TOTAL PERÍODO',             value: formatCurrency(totGen + totPar), big: true },
   ])
 
   addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
@@ -529,8 +512,9 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
 // ── PDF Estado de Cuenta ──────────────────────────────────────────────────────
 // filas: [{ periodo, expensas, alquiler, mora, tiempoMora, estado, total, fechaPago }]
 export async function generateEstadoCuentaPDF(inquilino, filas) {
-  const [footer, logoAdmin] = await Promise.all([
+  const [footer, logoApp, logoAdmin] = await Promise.all([
     resolveFooter(),
+    loadImageAsBase64('/expensas-plus/icon-512.png'),
     loadImageAsBase64('/expensas-plus/logo-admin.png'),
   ])
 
@@ -541,11 +525,8 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
   const fc = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-  fillPageBg(doc, pageWidth, pageHeight)
-
   let currentY = addHeader(
-    doc, pageWidth,
-    'ExpensasPlus',
+    doc, pageWidth, logoApp,
     'Estado de Cuenta',
     '',
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
@@ -561,13 +542,15 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
     ],
     'ALQUILER',
     [
-      inquilino.precioAlquiler ? `Precio: $${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}` : '-',
+      inquilino.precioAlquiler
+        ? `Precio: $${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}`
+        : '-',
       inquilino.cicloActualizacion ? `Ciclo: ${inquilino.cicloActualizacion}` : '',
     ].filter(Boolean)
   )
 
-  // Tabla de períodos con badges de estado
-  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight, {
+  // Tabla de períodos con badges de estado coloreados
+  const opts = tableOptions({
     didParseCell(data) {
       if (data.column.index === 5 && data.section === 'body') {
         const val = data.cell.raw
@@ -586,7 +569,7 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   })
 
   autoTable(doc, {
-    ...tableOpts,
+    ...opts,
     startY: currentY,
     head: [['Período', 'Expensas', 'Alquiler', 'Mora', 'Total', 'Estado', 'Fecha Pago']],
     body: filas.map(f => [
@@ -612,7 +595,7 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   currentY = doc.lastAutoTable.finalY + 8
 
   // Totales
-  if (currentY + 36 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
+  if (currentY + 36 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
   const totExp  = filas.reduce((s, f) => s + f.expensas, 0)
   const totAlq  = filas.reduce((s, f) => s + f.alquiler, 0)
@@ -620,10 +603,10 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   const totTot  = filas.reduce((s, f) => s + f.total,    0)
 
   addTotalBox(doc, pageWidth, currentY, [
-    { label: 'Total expensas',  value: fc(totExp)  },
-    { label: 'Total alquiler',  value: fc(totAlq)  },
-    { label: 'Total mora',      value: fc(totMora) },
-    { label: 'TOTAL',           value: fc(totTot),  big: true },
+    { label: 'Total expensas', value: fc(totExp)  },
+    { label: 'Total alquiler', value: fc(totAlq)  },
+    { label: 'Total mora',     value: fc(totMora) },
+    { label: 'TOTAL',          value: fc(totTot),  big: true },
   ])
 
   addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
