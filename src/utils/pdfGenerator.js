@@ -3,23 +3,21 @@ import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { getAdminConfig } from '../db'
 
-// ── Paleta de colores (fondo claro) ─────────────────────────────────────────
+// ── Paleta de colores ────────────────────────────────────────────────────────
 const C = {
-  bg:          [255, 255, 255],  // #ffffff  fondo general
-  card:        [248, 248, 248],  // #f8f8f8  secciones / footer
-  card2:       [243, 243, 243],  // #f3f3f3  filas alternas
-  border:      [224, 224, 224],  // #e0e0e0  bordes sutiles
-  accent:      [108, 99,  255],  // #6c63ff  violeta principal
-  accentSoft:  [240, 238, 255],  // #f0eeff  fondo totales
-  text:        [26,  26,  26],   // #1a1a1a  texto principal
-  textSec:     [102, 102, 102],  // #666666  texto secundario
+  dark:        [26,  31,  54],   // #1a1f36  encabezado / sección / table header
+  accent:      [108, 99,  255],  // #6c63ff  acento violeta
   white:       [255, 255, 255],
-  success:     [34,  197, 94],   // #22c55e
-  successSoft: [220, 252, 231],  // #dcfce7  verde suave
-  danger:      [239, 68,  68],   // #ef4444
-  dangerSoft:  [254, 226, 226],  // #fee2e2  rojo suave
-  warning:     [245, 158, 11],   // #f59e0b
-  warningSoft: [254, 243, 199],  // #fef3c7  amarillo suave
+  textDark:    [26,  31,  54],   // texto sobre fondo claro
+  textSec:     [102, 102, 102],  // #666666  texto secundario
+  border:      [224, 224, 224],  // #e0e0e0
+  rowAlt:      [245, 245, 245],  // #f5f5f5  fila alterna
+  success:     [34,  197, 94],
+  successSoft: [220, 252, 231],
+  danger:      [239, 68,  68],
+  dangerSoft:  [254, 226, 226],
+  warning:     [245, 158, 11],
+  warningSoft: [254, 243, 199],
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,8 +27,8 @@ async function resolveFooter() {
   return PDF_FOOTER_DEFAULT
 }
 
-function formatCurrency(amount) {
-  return `$${Number(amount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function formatCurrency(n) {
+  return `$${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function formatPeriodo(periodo) {
@@ -41,139 +39,175 @@ function formatPeriodo(periodo) {
   return `${meses[parseInt(month) - 1]} ${year}`
 }
 
-/** Carga una imagen pública como base64. Devuelve null si falla o no existe. */
-async function loadImageAsBase64(url) {
+/**
+ * Carga imagen como base64 + dimensiones en px.
+ * Retorna { b64, dims: { w, h } } o null si falla.
+ */
+async function loadImageWithDimensions(url) {
   try {
     const r = await fetch(url)
     if (!r.ok) return null
     const blob = await r.blob()
-    return new Promise(resolve => {
+    const b64 = await new Promise(resolve => {
       const fr = new FileReader()
       fr.onload  = () => resolve(fr.result)
       fr.onerror = () => resolve(null)
       fr.readAsDataURL(blob)
     })
+    if (!b64) return null
+    const dims = await new Promise(resolve => {
+      const img = new Image()
+      img.onload  = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+      img.onerror = () => resolve({ w: 100, h: 100 })
+      img.src = b64
+    })
+    return { b64, dims }
   } catch {
     return null
   }
 }
 
 /**
- * Encabezado: banda violeta redondeada.
- * Izquierda: logo de la app (icon-512.png).
- * Centro: "ExpensasPlus" bold 18pt.
- * Derecha: tipo de documento, período y fecha.
- * Retorna la Y donde empieza el contenido siguiente.
+ * Recorta una imagen en círculo usando canvas del navegador.
+ * Retorna data URL de la imagen recortada.
  */
-function addHeader(doc, pageWidth, logoApp, docType, periodLine, dateLine) {
-  const HX = 14, HY = 10, HW = pageWidth - 28, HH = 42
-
-  doc.setFillColor(...C.accent)
-  doc.roundedRect(HX, HY, HW, HH, 8, 8, 'F')
-
-  // Logo de la app a la izquierda (icon-512.png).
-  // Si falla la carga, se omite silenciosamente.
-  if (logoApp) {
-    try {
-      doc.addImage(logoApp, 'PNG', HX + 5, HY + 3, 16, 16)
-    } catch { /* omitir */ }
-  }
-
-  // "ExpensasPlus" centrado
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(...C.white)
-  doc.text('ExpensasPlus', HX + HW / 2, HY + 16, { align: 'center' })
-
-  // Columna derecha: tipo de doc, período y fecha
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(docType,    HX + HW - 5, HY + 14, { align: 'right' })
-  if (periodLine) doc.text(periodLine, HX + HW - 5, HY + 22, { align: 'right' })
-  if (dateLine)   doc.text(dateLine,   HX + HW - 5, HY + 30, { align: 'right' })
-
-  return HY + HH + 8
+async function circularCrop(b64, size = 200) {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width  = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        ctx.beginPath()
+        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+        ctx.clip()
+        const srcMin = Math.min(img.naturalWidth, img.naturalHeight)
+        const srcX   = (img.naturalWidth  - srcMin) / 2
+        const srcY   = (img.naturalHeight - srcMin) / 2
+        ctx.drawImage(img, srcX, srcY, srcMin, srcMin, 0, 0, size, size)
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve(b64)
+      }
+    }
+    img.onerror = () => resolve(b64)
+    img.src = b64
+  })
 }
 
 /**
- * Recuadro de datos del inquilino (fondo claro).
- * Retorna la Y siguiente.
+ * Calcula dimensiones en mm que caben en maxW×maxH manteniendo proporción.
+ */
+function fitInBounds(imgW, imgH, maxW, maxH) {
+  const byW = { w: maxW, h: maxW / (imgW / imgH) }
+  return byW.h <= maxH ? byW : { w: maxH * (imgW / imgH), h: maxH }
+}
+
+// ── Bloques visuales ─────────────────────────────────────────────────────────
+
+/**
+ * Encabezado: rectángulo navy, logo a la izquierda, texto a la derecha.
+ * logoExpensas: { b64, dims } | null
+ * Retorna Y del contenido siguiente.
+ */
+function addHeader(doc, pageWidth, logoExpensas, docType, periodLine, dateLine) {
+  const HX = 14, HY = 10, HW = pageWidth - 28, HH = 35
+
+  doc.setFillColor(...C.dark)
+  doc.roundedRect(HX, HY, HW, HH, 8, 8, 'F')
+
+  // Logo de la app a la izquierda (logo-expensas.png).
+  // Reemplazá la carga por la imagen definitiva cuando esté disponible.
+  if (logoExpensas) {
+    const fit    = fitInBounds(logoExpensas.dims.w, logoExpensas.dims.h, 70, 25)
+    const logoX  = HX + 6
+    const logoY  = HY + (HH - fit.h) / 2
+    try { doc.addImage(logoExpensas.b64, 'PNG', logoX, logoY, fit.w, fit.h) }
+    catch { /* omitir si falla */ }
+  }
+
+  // Texto derecho: tipo de documento, período, fecha
+  doc.setTextColor(...C.white)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.text(docType, HX + HW - 6, HY + 13, { align: 'right' })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  if (periodLine) doc.text(periodLine, HX + HW - 6, HY + 22, { align: 'right' })
+  if (dateLine)   doc.text(dateLine,   HX + HW - 6, HY + 30, { align: 'right' })
+
+  return HY + HH + 7
+}
+
+/**
+ * Sección de datos del inquilino: fondo navy, dos columnas, texto blanco.
+ * Retorna Y del contenido siguiente.
  */
 function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabel, rightLines) {
   const BX = 14, BW = pageWidth - 28
   const LINE_H = 5.5
   const rows = Math.max(leftLines.length, rightLines.length)
-  const BH = 10 + rows * LINE_H + 4
+  const BH   = 10 + rows * LINE_H + 4
 
-  doc.setFillColor(...C.card)
+  doc.setFillColor(...C.dark)
   doc.roundedRect(BX, startY, BW, BH, 6, 6, 'F')
-  doc.setDrawColor(...C.border)
-  doc.setLineWidth(0.3)
-  doc.roundedRect(BX, startY, BW, BH, 6, 6)
 
   const col2   = BX + BW / 2 + 10
   const labelY = startY + 8
 
-  function drawLabeledLines(lines, x) {
+  function drawColumn(label, lines, x) {
+    // Etiqueta de sección en violeta
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...C.accent)
+    doc.text(label, x, labelY)
+
     lines.forEach((line, i) => {
       const y = labelY + 5 + i * LINE_H
-      const colonIdx = line.indexOf(': ')
-      if (colonIdx > 0) {
-        const lbl = line.slice(0, colonIdx + 2)
-        const val = line.slice(colonIdx + 2)
-        doc.setTextColor(...C.textSec)
-        doc.text(lbl, x, y)
-        doc.setTextColor(...C.text)
-        doc.text(val, x + doc.getTextWidth(lbl), y)
+      if (i === 0) {
+        // Primera línea: nombre/depto en bold 10
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
       } else {
-        doc.setTextColor(...C.text)
-        doc.text(line, x, y)
+        // Resto: texto normal 9
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
       }
+      doc.setTextColor(...C.white)
+      doc.text(line, x, y)
     })
   }
 
-  doc.setFontSize(8)
-
-  // Columna izquierda
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...C.accent)
-  doc.text(leftLabel, BX + 6, labelY)
-  doc.setFont('helvetica', 'normal')
-  drawLabeledLines(leftLines, BX + 6)
-
-  // Columna derecha
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...C.accent)
-  doc.text(rightLabel, col2, labelY)
-  doc.setFont('helvetica', 'normal')
-  drawLabeledLines(rightLines, col2)
+  drawColumn(leftLabel,  leftLines,  BX + 6)
+  drawColumn(rightLabel, rightLines, col2)
 
   return startY + BH + 7
 }
 
 /**
- * Recuadro de totales: fondo #f0eeff, borde violeta.
+ * Caja de total: borde violeta 1.5pt, fondo blanco.
+ * lines: [{ label, value, big? }]
+ * Retorna Y del contenido siguiente.
  */
 function addTotalBox(doc, pageWidth, startY, lines) {
-  // lines: [{ label, value, big? }]
-  const BX = 14, BW = pageWidth - 28, BH = 8 + lines.length * 7
+  const BX = 14, BW = pageWidth - 28, BH = 8 + lines.length * 8
 
-  doc.setFillColor(...C.accentSoft)
-  doc.roundedRect(BX, startY, BW, BH, 6, 6, 'F')
+  doc.setFillColor(...C.white)
+  doc.roundedRect(BX, startY, BW, BH, 8, 8, 'F')
   doc.setDrawColor(...C.accent)
   doc.setLineWidth(0.4)
-  doc.roundedRect(BX, startY, BW, BH, 6, 6)
+  doc.roundedRect(BX, startY, BW, BH, 8, 8)
 
   lines.forEach((line, i) => {
-    const y = startY + 7 + i * 7
-    doc.setTextColor(...C.textSec)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(line.big ? 9 : 8)
-    doc.text(line.label, BX + 6, y)
-
+    const y = startY + 7 + i * 8
     doc.setTextColor(...C.accent)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(line.big ? 12 : 9)
+    doc.text(line.label, BX + 6, y)
+    doc.setFontSize(line.big ? 13 : 9)
     doc.text(line.value, BX + BW - 6, y, { align: 'right' })
   })
 
@@ -181,121 +215,116 @@ function addTotalBox(doc, pageWidth, startY, lines) {
 }
 
 /**
- * Pie de página: fondo #f8f8f8, línea superior violeta.
- * Muestra logo del administrador a la izquierda y datos en dos columnas.
+ * Pie de página: línea navy, logo admin circular a la izquierda,
+ * datos del administrador en dos columnas.
+ * logoAdminB64: string base64 (circular cropped) | null
  */
-function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
-  const FH = 54
-  const FY = pageHeight - FH - 8
-  const FX = 14, FW = pageWidth - 28
+function addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64) {
+  const FY = pageHeight - 50
+  const FX = 14
 
-  // Fondo claro
-  doc.setFillColor(...C.card)
-  doc.roundedRect(FX, FY, FW, FH, 6, 6, 'F')
-  doc.setDrawColor(...C.border)
-  doc.setLineWidth(0.2)
-  doc.roundedRect(FX, FY, FW, FH, 6, 6)
+  // Línea separadora
+  doc.setDrawColor(...C.dark)
+  doc.setLineWidth(0.5)
+  doc.line(FX, FY + 5, pageWidth - FX, FY + 5)
 
-  // Línea superior violeta 2px
-  doc.setDrawColor(...C.accent)
-  doc.setLineWidth(0.7)
-  doc.line(FX, FY, FX + FW, FY)
+  const LOGO_SIZE = 22
+  let col1X = FX + 6
 
-  let textStartX = FX + 6
-
-  // Logo del administrador a la izquierda.
-  // Colocá el archivo logo-admin.png en public/ para que aparezca aquí.
-  if (logoAdmin) {
+  // Logo administrador circular a la izquierda.
+  // Colocá logo-admin.png en public/ para que aparezca aquí.
+  if (logoAdminB64) {
     try {
-      // Máximo 25x12mm proporcional
-      doc.addImage(logoAdmin, 'PNG', FX + 6, FY + 6, 25, 12, '', 'FAST')
-      textStartX = FX + 36
+      doc.addImage(logoAdminB64, 'PNG', FX + 6, FY + 9, LOGO_SIZE, LOGO_SIZE, '', 'FAST')
+      col1X = FX + 6 + LOGO_SIZE + 6
     } catch { /* omitir si falla */ }
   }
 
-  const col1X = textStartX
   const col2X = pageWidth / 2 + 8
 
-  doc.setFontSize(8)
-
-  // Nombre administrador en bold
+  // Nombre del administrador
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...C.text)
-  doc.text(footer.administrador || '', col1X, FY + 12)
+  doc.setFontSize(10)
+  doc.setTextColor(...C.textDark)
+  doc.text(footer.administrador || '', col1X, FY + 14)
 
-  // Columna izquierda
+  // Columna 1
   doc.setFont('helvetica', 'normal')
-  const leftFields = [
+  doc.setFontSize(8.5)
+  const left = [
     ['CUIT',  footer.cuit],
     ['Tel',   footer.telefono],
     ['Email', footer.email],
   ]
-  leftFields.forEach(([lbl, val], i) => {
-    const y = FY + 20 + i * 7
+  left.forEach(([lbl, val], i) => {
+    const y = FY + 22 + i * 7
     doc.setTextColor(...C.textSec)
     doc.text(`${lbl}: `, col1X, y)
-    doc.setTextColor(...C.text)
+    doc.setTextColor(...C.textDark)
     doc.text(val || '', col1X + doc.getTextWidth(`${lbl}: `), y)
   })
 
-  // Columna derecha
-  const rightFields = [
+  // Columna 2
+  const right = [
     ['CBU',   footer.cbu],
     ['Alias', footer.alias],
     ['Pago',  footer.mediosDePago],
   ]
-  rightFields.forEach(([lbl, val], i) => {
-    const y = FY + 20 + i * 7
+  right.forEach(([lbl, val], i) => {
+    const y = FY + 22 + i * 7
     doc.setTextColor(...C.textSec)
     doc.text(`${lbl}: `, col2X, y)
-    doc.setTextColor(...C.text)
-    const maxW = FX + FW - col2X - doc.getTextWidth(`${lbl}: `) - 4
+    doc.setTextColor(...C.textDark)
+    const maxW = pageWidth - FX - col2X - doc.getTextWidth(`${lbl}: `) - 4
     const wrapped = doc.splitTextToSize(val || '', maxW)
     doc.text(wrapped[0] || '', col2X + doc.getTextWidth(`${lbl}: `), y)
   })
 }
 
-/** Opciones comunes de tabla (tema claro). */
+/** Opciones comunes de tabla para los 3 PDFs. */
 function tableOptions(extraOpts = {}) {
   return {
     theme: 'plain',
     headStyles: {
-      fillColor:   C.accent,
+      fillColor:   C.dark,
       textColor:   C.white,
       fontStyle:   'bold',
       fontSize:    8,
       cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
     },
     bodyStyles: {
-      fillColor:   C.bg,
-      textColor:   C.text,
-      fontSize:    8,
+      fillColor:   C.white,
+      textColor:   C.textDark,
+      fontSize:    9,
       lineColor:   C.border,
       lineWidth:   0.1,
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
     },
-    alternateRowStyles: { fillColor: C.card2 },
-    tableLineColor: C.border,
-    tableLineWidth: 0.1,
+    alternateRowStyles: { fillColor: C.rowAlt },
+    tableLineColor:  C.border,
+    tableLineWidth:  0.1,
     ...extraOpts,
   }
 }
 
 // ── PDF Inquilino ─────────────────────────────────────────────────────────────
 export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, gastosParticulares, totalInquilinos) {
-  const [footer, logoApp, logoAdmin] = await Promise.all([
+  const [footer, logoExpensas, logoAdminRaw] = await Promise.all([
     resolveFooter(),
-    loadImageAsBase64('/expensas-plus/icon-512.png'),
-    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+    loadImageWithDimensions('/expensas-plus/logo-expensas.png'),
+    loadImageWithDimensions('/expensas-plus/logo-admin.png'),
   ])
+  const logoAdminB64 = logoAdminRaw
+    ? await circularCrop(logoAdminRaw.b64)
+    : null
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const doc        = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const FOOTER_RESERVED = 65
+  const FOOTER_RESERVED = 55
 
   let currentY = addHeader(
-    doc, pageWidth, logoApp,
+    doc, pageWidth, logoExpensas,
     'Liquidación de Expensas',
     `Período: ${formatPeriodo(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
@@ -317,25 +346,25 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     ],
     'UNIDAD',
     [
-      `Depto: ${inquilino.departamento}`,
-      ...domLines.map((l, i) => (i === 0 ? `Domicilio: ${l}` : l)),
+      inquilino.departamento,
+      ...domLines,
     ]
   )
 
   const opts = tableOptions()
 
-  // Cargos generales
+  // ── Cargos generales
   if (gastosGenerales.length > 0) {
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...C.accent)
-    doc.text('Cargos Generales', 14, currentY)
-    currentY += 4
+    doc.text('CARGOS GENERALES', 14, currentY)
+    currentY += 5
 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Su parte']],
+      head: [['SERVICIO', 'EMPRESA', 'FACTURA N°', 'VENCIMIENTO', 'TOTAL', 'SU PARTE']],
       body: gastosGenerales.map(g => [
         g.servicio,
         g.empresa,
@@ -357,18 +386,18 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Cargos particulares
+  // ── Cargos particulares
   if (gastosParticulares.length > 0) {
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...C.danger)
-    doc.text('Cargos Particulares', 14, currentY)
-    currentY += 4
+    doc.setTextColor(...C.accent)
+    doc.text('CARGOS PARTICULARES', 14, currentY)
+    currentY += 5
 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
+      head: [['SERVICIO', 'EMPRESA', 'FACTURA N°', 'VENCIMIENTO', 'IMPORTE']],
       body: gastosParticulares.map(g => [
         g.servicio,
         g.empresa,
@@ -388,56 +417,58 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Total
-  const totalGeneral    = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / totalInquilinos, 0)
-  const totalParticular = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
+  // ── Total
+  const totGen = gastosGenerales.reduce((s, g)    => s + Number(g.importe) / totalInquilinos, 0)
+  const totPar = gastosParticulares.reduce((s, g)  => s + Number(g.importe), 0)
   addTotalBox(doc, pageWidth, currentY, [
-    { label: 'Total a pagar', value: formatCurrency(totalGeneral + totalParticular), big: true },
+    { label: 'TOTAL A PAGAR', value: formatCurrency(totGen + totPar), big: true },
   ])
 
-  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64)
   doc.save(`Expensas_${inquilino.apellido}_${inquilino.nombre}_${periodo}.pdf`)
 }
 
 // ── PDF Historial ─────────────────────────────────────────────────────────────
 export async function generateHistorialPDF(periodo, gastos, inquilinos, serviciosMap) {
-  const [footer, logoApp, logoAdmin] = await Promise.all([
+  const [footer, logoExpensas, logoAdminRaw] = await Promise.all([
     resolveFooter(),
-    loadImageAsBase64('/expensas-plus/icon-512.png'),
-    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+    loadImageWithDimensions('/expensas-plus/logo-expensas.png'),
+    loadImageWithDimensions('/expensas-plus/logo-admin.png'),
   ])
+  const logoAdminB64 = logoAdminRaw
+    ? await circularCrop(logoAdminRaw.b64)
+    : null
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const doc        = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const FOOTER_RESERVED = 65
+  const FOOTER_RESERVED = 55
   const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
 
   let currentY = addHeader(
-    doc, pageWidth, logoApp,
+    doc, pageWidth, logoExpensas,
     'Detalle Completo de Período',
     `Período: ${formatPeriodo(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
-  const opts       = tableOptions()
+  const opts        = tableOptions()
   const generales   = gastos.filter(g => g.tipo === 'general')
   const particulares = gastos.filter(g => g.tipo === 'particular')
+  const suParte      = importe => formatCurrency(importe / (inquilinos.length || 1))
 
-  // Cargos generales
+  // ── Cargos generales
   if (generales.length > 0) {
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...C.accent)
-    doc.text('Cargos Generales', 14, currentY)
-    currentY += 4
-
-    const suParte = importe => formatCurrency(importe / (inquilinos.length || 1))
+    doc.text('CARGOS GENERALES', 14, currentY)
+    currentY += 5
 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe Total', 'Inquilino', 'Su Parte']],
+      head: [['SERVICIO', 'EMPRESA', 'FACTURA N°', 'VENCIMIENTO', 'IMPORTE TOTAL', 'INQUILINO', 'SU PARTE']],
       body: generales.flatMap(g =>
         inquilinos.map(inq => [
           serviciosMap[g.servicioId] || g.servicioId,
@@ -463,20 +494,20 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Cargos particulares
+  // ── Cargos particulares
   if (particulares.length > 0) {
     if (currentY + 20 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...C.danger)
-    doc.text('Cargos Particulares', 14, currentY)
-    currentY += 4
+    doc.setTextColor(...C.accent)
+    doc.text('CARGOS PARTICULARES', 14, currentY)
+    currentY += 5
 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Inquilino', 'Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
+      head: [['INQUILINO', 'SERVICIO', 'EMPRESA', 'FACTURA N°', 'VENCIMIENTO', 'IMPORTE']],
       body: particulares.map(g => {
         const inq = inquilinos.find(i => i.id === g.inquilinoId)
         return [
@@ -494,8 +525,8 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Totales
-  if (currentY + 32 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
+  // ── Totales
+  if (currentY + 34 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
   const totGen = generales.reduce((s, g)    => s + Number(g.importe), 0)
   const totPar = particulares.reduce((s, g)  => s + Number(g.importe), 0)
@@ -505,28 +536,31 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
     { label: 'TOTAL PERÍODO',             value: formatCurrency(totGen + totPar), big: true },
   ])
 
-  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64)
   doc.save(`Historial de Expensas_${formatPeriodo(periodo).replace(' ', '_')}.pdf`)
 }
 
 // ── PDF Estado de Cuenta ──────────────────────────────────────────────────────
 // filas: [{ periodo, expensas, alquiler, mora, tiempoMora, estado, total, fechaPago }]
 export async function generateEstadoCuentaPDF(inquilino, filas) {
-  const [footer, logoApp, logoAdmin] = await Promise.all([
+  const [footer, logoExpensas, logoAdminRaw] = await Promise.all([
     resolveFooter(),
-    loadImageAsBase64('/expensas-plus/icon-512.png'),
-    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+    loadImageWithDimensions('/expensas-plus/logo-expensas.png'),
+    loadImageWithDimensions('/expensas-plus/logo-admin.png'),
   ])
+  const logoAdminB64 = logoAdminRaw
+    ? await circularCrop(logoAdminRaw.b64)
+    : null
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const doc        = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const FOOTER_RESERVED = 65
+  const FOOTER_RESERVED = 55
   const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
   const fc = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   let currentY = addHeader(
-    doc, pageWidth, logoApp,
+    doc, pageWidth, logoExpensas,
     'Estado de Cuenta',
     '',
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
@@ -543,13 +577,13 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
     'ALQUILER',
     [
       inquilino.precioAlquiler
-        ? `Precio: $${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}`
+        ? `$${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}`
         : '-',
       inquilino.cicloActualizacion ? `Ciclo: ${inquilino.cicloActualizacion}` : '',
     ].filter(Boolean)
   )
 
-  // Tabla de períodos con badges de estado coloreados
+  // Tabla con badges de estado coloreados
   const opts = tableOptions({
     didParseCell(data) {
       if (data.column.index === 5 && data.section === 'body') {
@@ -571,7 +605,7 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   autoTable(doc, {
     ...opts,
     startY: currentY,
-    head: [['Período', 'Expensas', 'Alquiler', 'Mora', 'Total', 'Estado', 'Fecha Pago']],
+    head: [['PERÍODO', 'EXPENSAS', 'ALQUILER', 'MORA', 'TOTAL', 'ESTADO', 'FECHA PAGO']],
     body: filas.map(f => [
       formatPeriodo(f.periodo),
       fc(f.expensas),
@@ -595,24 +629,19 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   currentY = doc.lastAutoTable.finalY + 8
 
   // Totales
-  if (currentY + 36 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
-
-  const totExp  = filas.reduce((s, f) => s + f.expensas, 0)
-  const totAlq  = filas.reduce((s, f) => s + f.alquiler, 0)
-  const totMora = filas.reduce((s, f) => s + f.mora,     0)
-  const totTot  = filas.reduce((s, f) => s + f.total,    0)
+  if (currentY + 38 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
   addTotalBox(doc, pageWidth, currentY, [
-    { label: 'Total expensas', value: fc(totExp)  },
-    { label: 'Total alquiler', value: fc(totAlq)  },
-    { label: 'Total mora',     value: fc(totMora) },
-    { label: 'TOTAL',          value: fc(totTot),  big: true },
+    { label: 'Total expensas', value: fc(filas.reduce((s, f) => s + f.expensas, 0)) },
+    { label: 'Total alquiler', value: fc(filas.reduce((s, f) => s + f.alquiler, 0)) },
+    { label: 'Total mora',     value: fc(filas.reduce((s, f) => s + f.mora,     0)) },
+    { label: 'TOTAL',          value: fc(filas.reduce((s, f) => s + f.total,    0)), big: true },
   ])
 
-  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64)
 
   const hoy = new Date()
-  const mesActual = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
+  const mes = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
     'Agosto','Septiembre','Octubre','Noviembre','Diciembre'][hoy.getMonth()]
-  doc.save(`Estado de Cuenta_${inquilino.apellido}_${inquilino.nombre}_${mesActual}_${hoy.getFullYear()}.pdf`)
+  doc.save(`Estado de Cuenta_${inquilino.apellido}_${inquilino.nombre}_${mes}_${hoy.getFullYear()}.pdf`)
 }
