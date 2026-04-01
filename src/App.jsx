@@ -71,9 +71,11 @@ export default function App() {
       {/* ── Sidebar (desktop) ───────────────────── */}
       <nav className="sidebar">
         <div className="sidebar-brand">
-          {/* LOGO: reemplazá este div por <img src="logo.png" className="sidebar-logo-img" alt="Logo" /> */}
-          <div className="sidebar-logo-mark">E</div>
-          <span className="brand-name">ExpensasPlus</span>
+          <img
+            src="/expensas-plus/logo-expensas.png"
+            alt="ExpensasPlus"
+            style={{ width: '140px', height: 'auto' }}
+          />
         </div>
 
         <ul className="nav-list">
@@ -101,12 +103,10 @@ export default function App() {
           <div className="home-screen">
             <div className="home-header">
               <img
-                src="/expensas-plus/icon-512.png"
+                src="/expensas-plus/logo-expensas.png"
                 alt="ExpensasPlus"
-                style={{ width: '80px', height: '80px', borderRadius: '20px' }}
+                style={{ width: '200px', height: 'auto' }}
               />
-              <h1 className="home-title">ExpensasPlus</h1>
-              <p className="home-slogan">Sistema de gestión de expensas</p>
             </div>
 
             <div className="home-grid">

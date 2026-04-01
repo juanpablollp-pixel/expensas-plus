@@ -100,26 +100,6 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
-/* LOGO: reemplazá .sidebar-logo-mark por <img src="logo.png" /> cuando tengas la imagen */
-.sidebar-logo-mark {
-  width: 32px;
-  height: 32px;
-  background: var(--accent-soft);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.brand-name {
-  font-size: 15px;
-  font-weight: var(--fw-bold);
-  letter-spacing: -0.3px;
-  color: var(--text-primary);
-}
 
 .nav-list {
   list-style: none;
@@ -239,17 +219,6 @@ body {
   font-weight: 700;
   color: var(--accent);
   margin: 0 auto 16px;
-}
-.home-title {
-  font-size: 22px;
-  font-weight: var(--fw-black);
-  color: var(--text-primary);
-  margin-bottom: 6px;
-}
-.home-slogan {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: var(--fw-light);
 }
 
 .home-grid {
@@ -1297,8 +1266,6 @@ button { cursor: pointer; font-family: inherit; }
   /* ── Home ── */
   .home-screen { padding: 24px 16px 20px; }
   .home-header { margin-bottom: 24px; }
-  .home-title  { font-size: 20px; }
-  .home-slogan { font-size: 12px; }
   .home-grid {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
