@@ -3,6 +3,27 @@ import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { getAdminConfig } from '../db'
 
+// ── Paleta de colores ────────────────────────────────────────────────────────
+// Cada valor es [R, G, B] para usar directamente en setFillColor / setTextColor
+const C = {
+  bg:          [15,  15,  15],   // #0f0f0f  fondo general
+  card:        [26,  26,  26],   // #1a1a1a  cards / footer
+  card2:       [36,  36,  36],   // #242424  filas alternas
+  border:      [51,  51,  51],   // #333333  bordes sutiles
+  accent:      [108, 99,  255],  // #6c63ff  violeta principal
+  accentSoft:  [29,  28,  51],   // rgba(108,99,255,0.15) sobre #0f0f0f
+  text:        [240, 240, 240],  // #f0f0f0  texto principal
+  textSec:     [160, 160, 160],  // #a0a0a0  texto secundario
+  white:       [255, 255, 255],
+  success:     [34,  197, 94],   // #22c55e
+  successSoft: [18,  42,  27],   // rgba(34,197,94,0.15) sobre #0f0f0f
+  danger:      [239, 68,  68],   // #ef4444
+  dangerSoft:  [49,  23,  23],   // rgba(239,68,68,0.15) sobre #0f0f0f
+  warning:     [245, 158, 11],   // #f59e0b
+  warningSoft: [50,  36,  15],   // rgba(245,158,11,0.15) sobre #0f0f0f
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 async function resolveFooter() {
   const saved = await getAdminConfig()
   if (saved && saved.administrador) return saved
@@ -21,256 +42,430 @@ function formatPeriodo(periodo) {
   return `${meses[parseInt(month) - 1]} ${year}`
 }
 
-function addFooter(doc, pageWidth, pageHeight, footer) {
-  const footerY = pageHeight - 52
-  doc.setDrawColor(37, 99, 235)
-  doc.setLineWidth(0.5)
-  doc.line(14, footerY, pageWidth - 14, footerY)
-
-  doc.setFontSize(8)
-  doc.setTextColor(60, 60, 60)
-
-  const col1X = 14
-  const col2X = pageWidth / 2 + 10
-
-  doc.setFont('helvetica', 'bold')
-  doc.text('Datos de pago:', col1X, footerY + 6)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Administrador: ${footer.administrador}`, col1X, footerY + 12)
-  doc.text(`CUIT: ${footer.cuit}`, col1X, footerY + 18)
-  doc.text(`Tel: ${footer.telefono}`, col1X, footerY + 24)
-  doc.text(`Email: ${footer.email}`, col1X, footerY + 30)
-
-  doc.text(`CBU: ${footer.cbu}`, col2X, footerY + 12)
-  doc.text(`Alias: ${footer.alias}`, col2X, footerY + 18)
-  doc.text(`Medios de pago: ${footer.mediosDePago}`, col2X, footerY + 24)
+/** Carga una imagen pública como base64. Devuelve null si no existe. */
+async function loadImageAsBase64(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result)
+      reader.onerror   = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
 }
 
-function addHeader(doc, pageWidth, inquilino, periodo) {
-  // LOGO: Para agregar un logo, descomentá las siguientes líneas
-  // y reemplazá 'BASE64_IMAGE_DATA' con el base64 de tu imagen:
-  // const logoBase64 = 'BASE64_IMAGE_DATA'
-  // doc.addImage(logoBase64, 'PNG', 14, 10, 40, 20)
+/** Pinta el fondo oscuro de toda la página. */
+function fillPageBg(doc, pageWidth, pageHeight) {
+  doc.setFillColor(...C.bg)
+  doc.rect(0, 0, pageWidth, pageHeight, 'F')
+}
 
-  // Caja de encabezado
-  doc.setFillColor(37, 99, 235)
-  doc.rect(0, 0, pageWidth, 32, 'F')
+/**
+ * Encabezado dark-mode: recuadro violeta redondeado con logo y datos de período.
+ * Retorna la Y donde empieza el contenido siguiente.
+ */
+function addHeader(doc, pageWidth, _title, subtitle, rightLine1, rightLine2) {
+  const HX = 14, HY = 10, HW = pageWidth - 28, HH = 32
 
+  doc.setFillColor(...C.accent)
+  doc.roundedRect(HX, HY, HW, HH, 6, 6, 'F')
+
+  // LOGO APP: reemplazá las dos líneas de abajo por doc.addImage(logoBase64, 'PNG', HX+6, HY+7, 18, 18)
+  //           cuando tengas la imagen definitiva del logo de la app.
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(255, 255, 255)
-  doc.text('ExpensasPlus', 14, 14)
+  doc.setTextColor(...C.white)
+  doc.text('ExpensasPlus', HX + 6, HY + 13)
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Liquidación de Expensas', 14, 22)
-
-  doc.setFontSize(10)
-  doc.text(`Período: ${formatPeriodo(periodo)}`, pageWidth - 14, 14, { align: 'right' })
-  doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, pageWidth - 14, 22, { align: 'right' })
-
-  // Datos del inquilino
-  const BOX_TOP = 38
-  const LINE_H = 5.5  // mm entre líneas de texto
-  const col2 = pageWidth / 2 + 14
-  const col2MaxWidth = pageWidth - 18 - col2  // hasta el borde derecho (margen 14 + padding 4)
-
-  // Pre-calcular el wrap del domicilio ANTES de dibujar el recuadro
   doc.setFontSize(9)
-  const domicilioLines = inquilino.domicilio
-    ? doc.splitTextToSize(`Domicilio Fiscal: ${inquilino.domicilio}`, col2MaxWidth)
-    : []
+  doc.setFont('helvetica', 'normal')
+  doc.text(subtitle, HX + 6, HY + 22)
 
-  // Altura dinámica: base para título + nombre + DNI (3 filas = ~21mm + 3 padding)
-  // Cada línea extra de domicilio suma LINE_H
-  const extraLines = Math.max(0, domicilioLines.length - 1)
-  const BOX_HEIGHT = 24 + extraLines * LINE_H
+  doc.setFontSize(9)
+  doc.text(rightLine1, HX + HW - 4, HY + 13, { align: 'right' })
+  doc.text(rightLine2, HX + HW - 4, HY + 22, { align: 'right' })
 
-  // Dibujar recuadro con altura ajustada
-  doc.setFillColor(239, 246, 255)
-  doc.rect(14, BOX_TOP, pageWidth - 28, BOX_HEIGHT, 'F')
-  doc.setDrawColor(37, 99, 235)
+  return HY + HH + 8
+}
+
+/**
+ * Recuadro de datos del inquilino dark-mode.
+ * Retorna la Y siguiente.
+ */
+function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabel, rightLines) {
+  const BX = 14, BW = pageWidth - 28
+  const LINE_H = 5.5
+  const rows = Math.max(leftLines.length, rightLines.length)
+  const BH = 10 + rows * LINE_H + 4
+
+  doc.setFillColor(...C.card)
+  doc.roundedRect(BX, startY, BW, BH, 6, 6, 'F')
+  doc.setDrawColor(...C.border)
   doc.setLineWidth(0.3)
-  doc.rect(14, BOX_TOP, pageWidth - 28, BOX_HEIGHT)
+  doc.roundedRect(BX, startY, BW, BH, 6, 6)
 
-  // Columna izquierda: INQUILINO
-  doc.setFontSize(9)
-  doc.setTextColor(37, 99, 235)
-  doc.setFont('helvetica', 'bold')
-  doc.text('INQUILINO', 18, BOX_TOP + 8)
-  doc.setTextColor(30, 30, 30)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`${inquilino.nombre} ${inquilino.apellido}`, 18, BOX_TOP + 15)
-  doc.text(`DNI/CUIT: ${inquilino.dni}`, 18, BOX_TOP + 21)
+  const col2 = BX + BW / 2 + 10
+  const labelY = startY + 8
 
-  // Columna derecha: UNIDAD
+  // Columna izquierda
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(37, 99, 235)
-  doc.text('UNIDAD', col2, BOX_TOP + 8)
-  doc.setTextColor(30, 30, 30)
+  doc.setTextColor(...C.accent)
+  doc.text(leftLabel, BX + 6, labelY)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Depto: ${inquilino.departamento}`, col2, BOX_TOP + 15)
-  if (domicilioLines.length > 0) {
-    doc.text(domicilioLines, col2, BOX_TOP + 21)
+  leftLines.forEach((line, i) => {
+    const isLabel = line.includes(':')
+    const [lbl, ...rest] = line.split(': ')
+    if (isLabel && rest.length) {
+      doc.setTextColor(...C.textSec)
+      doc.text(lbl + ': ', BX + 6, labelY + 5 + i * LINE_H)
+      doc.setTextColor(...C.text)
+      const lblW = doc.getTextWidth(lbl + ': ')
+      doc.text(rest.join(': '), BX + 6 + lblW, labelY + 5 + i * LINE_H)
+    } else {
+      doc.setTextColor(...C.text)
+      doc.text(line, BX + 6, labelY + 5 + i * LINE_H)
+    }
+  })
+
+  // Columna derecha
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...C.accent)
+  doc.text(rightLabel, col2, labelY)
+  doc.setFont('helvetica', 'normal')
+  rightLines.forEach((line, i) => {
+    const isLabel = line.includes(':')
+    const [lbl, ...rest] = line.split(': ')
+    if (isLabel && rest.length) {
+      doc.setTextColor(...C.textSec)
+      doc.text(lbl + ': ', col2, labelY + 5 + i * LINE_H)
+      doc.setTextColor(...C.text)
+      const lblW = doc.getTextWidth(lbl + ': ')
+      doc.text(rest.join(': '), col2 + lblW, labelY + 5 + i * LINE_H)
+    } else {
+      doc.setTextColor(...C.text)
+      doc.text(line, col2, labelY + 5 + i * LINE_H)
+    }
+  })
+
+  return startY + BH + 7
+}
+
+/**
+ * Recuadro de total dark-mode: fondo accentSoft, borde violeta.
+ */
+function addTotalBox(doc, pageWidth, startY, lines) {
+  // lines: [{ label, value, big }]
+  const BX = 14, BW = pageWidth - 28, BH = 8 + lines.length * 7
+  doc.setFillColor(...C.accentSoft)
+  doc.roundedRect(BX, startY, BW, BH, 6, 6, 'F')
+  doc.setDrawColor(...C.accent)
+  doc.setLineWidth(0.4)
+  doc.roundedRect(BX, startY, BW, BH, 6, 6)
+
+  lines.forEach((line, i) => {
+    const y = startY + 7 + i * 7
+    doc.setTextColor(...C.textSec)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(line.big ? 9 : 8)
+    doc.text(line.label, BX + 6, y)
+
+    doc.setTextColor(...C.accent)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(line.big ? 12 : 9)
+    doc.text(line.value, BX + BW - 6, y, { align: 'right' })
+  })
+
+  return startY + BH + 6
+}
+
+/**
+ * Pie de página dark-mode con logo del administrador y datos en dos columnas.
+ * logoAdmin: base64 string o null.
+ */
+function addFooter(doc, pageWidth, pageHeight, footer, logoAdmin) {
+  const FH = 54
+  const FY = pageHeight - FH - 8
+  const FX = 14, FW = pageWidth - 28
+
+  // Fondo del pie
+  doc.setFillColor(...C.card)
+  doc.roundedRect(FX, FY, FW, FH, 6, 6, 'F')
+
+  // Borde superior violeta
+  doc.setDrawColor(...C.accent)
+  doc.setLineWidth(0.8)
+  doc.line(FX, FY, FX + FW, FY)
+  doc.setLineWidth(0.2)
+  doc.setDrawColor(...C.border)
+  doc.roundedRect(FX, FY, FW, FH, 6, 6)
+
+  let textStartX = FX + 6
+
+  // LOGO ADMINISTRADOR: coloca el archivo logo-admin.png en public/
+  // para que aparezca aquí automáticamente.
+  if (logoAdmin) {
+    try {
+      doc.addImage(logoAdmin, 'PNG', FX + 6, FY + 8, 30, 15, '', 'FAST')
+      textStartX = FX + 42
+    } catch {
+      // continuar sin logo si falla
+    }
   }
 
-  // Retornar la Y donde debe comenzar el contenido siguiente
-  return BOX_TOP + BOX_HEIGHT + 8
+  const col1X = textStartX
+  const col2X = pageWidth / 2 + 8
+
+  doc.setFontSize(8)
+
+  // Nombre del administrador en bold
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...C.text)
+  doc.text(footer.administrador || '', col1X, FY + 12)
+
+  // Datos columna izquierda
+  doc.setFont('helvetica', 'normal')
+  const leftFields = [
+    ['CUIT', footer.cuit],
+    ['Tel',  footer.telefono],
+    ['Email', footer.email],
+  ]
+  leftFields.forEach(([lbl, val], i) => {
+    const y = FY + 20 + i * 7
+    doc.setTextColor(...C.textSec)
+    doc.text(`${lbl}: `, col1X, y)
+    doc.setTextColor(...C.text)
+    const lblW = doc.getTextWidth(`${lbl}: `)
+    doc.text(val || '', col1X + lblW, y)
+  })
+
+  // Datos columna derecha
+  const rightFields = [
+    ['CBU',   footer.cbu],
+    ['Alias', footer.alias],
+    ['Pago',  footer.mediosDePago],
+  ]
+  rightFields.forEach(([lbl, val], i) => {
+    const y = FY + 20 + i * 7
+    doc.setTextColor(...C.textSec)
+    doc.text(`${lbl}: `, col2X, y)
+    doc.setTextColor(...C.text)
+    const lblW = doc.getTextWidth(`${lbl}: `)
+    const maxW = FX + FW - col2X - lblW - 4
+    const lines = doc.splitTextToSize(val || '', maxW)
+    doc.text(lines[0] || '', col2X + lblW, y)
+  })
 }
 
+/** Opciones comunes de dark-mode para autoTable. */
+function darkTableOptions(doc, pageWidth, pageHeight, extraOpts = {}) {
+  return {
+    theme: 'plain',
+    headStyles: {
+      fillColor: C.accent,
+      textColor: C.white,
+      fontStyle: 'bold',
+      fontSize: 8,
+      cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
+    },
+    bodyStyles: {
+      fillColor: C.card,
+      textColor: C.text,
+      fontSize: 8,
+      lineColor: C.border,
+      lineWidth: 0.1,
+      cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
+    },
+    alternateRowStyles: { fillColor: C.card2 },
+    tableLineColor: C.border,
+    tableLineWidth: 0.1,
+    // Rellena el fondo en páginas nuevas generadas por autoTable
+    willDrawPage(data) {
+      if (data.pageNumber > 1) {
+        fillPageBg(doc, pageWidth, pageHeight)
+      }
+    },
+    ...extraOpts,
+  }
+}
+
+// ── PDF Inquilino ─────────────────────────────────────────────────────────────
 export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, gastosParticulares, totalInquilinos) {
-  const footer = await resolveFooter()
+  const [footer, logoAdmin] = await Promise.all([
+    resolveFooter(),
+    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+  ])
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  let currentY = addHeader(doc, pageWidth, inquilino, periodo)
+  fillPageBg(doc, pageWidth, pageHeight)
 
-  // Tabla de cargos generales
+  let currentY = addHeader(
+    doc, pageWidth,
+    'ExpensasPlus',
+    'Liquidación de Expensas',
+    `Período: ${formatPeriodo(periodo)}`,
+    `Fecha: ${new Date().toLocaleDateString('es-AR')}`
+  )
+
+  // Recuadro de datos del inquilino
+  const domMaxW = (pageWidth - 28) / 2 - 16
+  doc.setFontSize(8)
+  const domLines = inquilino.domicilio
+    ? doc.splitTextToSize(`${inquilino.domicilio}`, domMaxW)
+    : ['-']
+
+  currentY = addInquilinoBox(
+    doc, pageWidth, currentY,
+    'INQUILINO',
+    [
+      `${inquilino.nombre} ${inquilino.apellido}`,
+      `DNI/CUIT: ${inquilino.dni}`,
+    ],
+    'UNIDAD',
+    [
+      `Depto: ${inquilino.departamento}`,
+      ...domLines.map((l, i) => (i === 0 ? `Domicilio: ${l}` : l)),
+    ]
+  )
+
+  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight)
+  const FOOTER_RESERVED = 65
+
+  // ── Cargos generales
   if (gastosGenerales.length > 0) {
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(37, 99, 235)
+    doc.setTextColor(...C.accent)
     doc.text('Cargos Generales', 14, currentY)
     currentY += 4
 
-    const generalRows = gastosGenerales.map(g => [
-      g.servicio,
-      g.empresa,
-      g.numeroFactura || '-',
-      g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
-      formatCurrency(g.importe),
-      formatCurrency(g.importe / totalInquilinos)
-    ])
-
     autoTable(doc, {
+      ...tableOpts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Su parte']],
-      body: generalRows,
-      theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 8 },
+      body: gastosGenerales.map(g => [
+        g.servicio,
+        g.empresa,
+        g.numeroFactura || '-',
+        g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
+        formatCurrency(g.importe),
+        formatCurrency(g.importe / totalInquilinos),
+      ]),
       columnStyles: {
         0: { cellWidth: 30 },
         1: { cellWidth: 36 },
         2: { cellWidth: 26 },
         3: { cellWidth: 28 },
         4: { cellWidth: 26, halign: 'right' },
-        5: { cellWidth: 36, halign: 'right', fontStyle: 'bold' }
+        5: { cellWidth: 36, halign: 'right', fontStyle: 'bold' },
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Tabla de cargos particulares
+  // ── Cargos particulares
   if (gastosParticulares.length > 0) {
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(220, 38, 38)
+    doc.setTextColor(...C.danger)
     doc.text('Cargos Particulares', 14, currentY)
     currentY += 4
 
-    const particularRows = gastosParticulares.map(g => [
-      g.servicio,
-      g.empresa,
-      g.numeroFactura || '-',
-      g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
-      formatCurrency(g.importe)
-    ])
-
     autoTable(doc, {
+      ...tableOpts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
-      body: particularRows,
-      theme: 'striped',
-      headStyles: { fillColor: [220, 38, 38], fontSize: 8, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 8 },
+      body: gastosParticulares.map(g => [
+        g.servicio,
+        g.empresa,
+        g.numeroFactura || '-',
+        g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
+        formatCurrency(g.importe),
+      ]),
       columnStyles: {
         0: { cellWidth: 30 },
         1: { cellWidth: 62 },
         2: { cellWidth: 28 },
         3: { cellWidth: 30 },
-        4: { cellWidth: 32, halign: 'right', fontStyle: 'bold' }
+        4: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Total
-  const totalGeneral = gastosGenerales.reduce((sum, g) => sum + Number(g.importe) / totalInquilinos, 0)
-  const totalParticular = gastosParticulares.reduce((sum, g) => sum + Number(g.importe), 0)
-  const totalAPagar = totalGeneral + totalParticular
+  // ── Total
+  const totalGeneral   = gastosGenerales.reduce((s, g) => s + Number(g.importe) / totalInquilinos, 0)
+  const totalParticular = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
+  addTotalBox(doc, pageWidth, currentY, [
+    { label: 'Total a pagar', value: formatCurrency(totalGeneral + totalParticular), big: true },
+  ])
 
-  doc.setFillColor(37, 99, 235)
-  doc.rect(pageWidth - 80, currentY - 2, 66, 14, 'F')
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(255, 255, 255)
-  doc.text('TOTAL A PAGAR:', pageWidth - 76, currentY + 5)
-  doc.setFontSize(12)
-  doc.text(formatCurrency(totalAPagar), pageWidth - 14, currentY + 5, { align: 'right' })
-
-  addFooter(doc, pageWidth, pageHeight, footer)
-
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
   doc.save(`Expensas_${inquilino.apellido}_${inquilino.nombre}_${periodo}.pdf`)
 }
 
+// ── PDF Historial ─────────────────────────────────────────────────────────────
 export async function generateHistorialPDF(periodo, gastos, inquilinos, serviciosMap) {
-  const footer = await resolveFooter()
+  const [footer, logoAdmin] = await Promise.all([
+    resolveFooter(),
+    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+  ])
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageWidth  = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
+  const FOOTER_RESERVED = 65
+  const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
 
-  // Espacio reservado para el pie de página (52mm de alto + 8mm de margen)
-  const FOOTER_RESERVED = 60
-  const CONTENT_BOTTOM = pageHeight - FOOTER_RESERVED
+  fillPageBg(doc, pageWidth, pageHeight)
 
-  // Encabezado
-  doc.setFillColor(37, 99, 235)
-  doc.rect(0, 0, pageWidth, 32, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(255, 255, 255)
-  doc.text('ExpensasPlus', 14, 14)
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Detalle Completo de Período', 14, 22)
-  doc.text(`Período: ${formatPeriodo(periodo)}`, pageWidth - 14, 14, { align: 'right' })
-  doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-AR')}`, pageWidth - 14, 22, { align: 'right' })
+  let currentY = addHeader(
+    doc, pageWidth,
+    'ExpensasPlus',
+    'Detalle Completo de Período',
+    `Período: ${formatPeriodo(periodo)}`,
+    `Fecha: ${new Date().toLocaleDateString('es-AR')}`
+  )
 
-  let currentY = 42
+  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight)
+  const generales   = gastos.filter(g => g.tipo === 'general')
+  const particulares = gastos.filter(g => g.tipo === 'particular')
 
-  // Cargos Generales
-  const generales = gastos.filter(g => g.tipo === 'general')
+  // ── Cargos generales
   if (generales.length > 0) {
-    doc.setFontSize(11)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(37, 99, 235)
+    doc.setTextColor(...C.accent)
     doc.text('Cargos Generales', 14, currentY)
     currentY += 4
 
-    const suParte = (importe) => formatCurrency(importe / (inquilinos.length || 1))
-    const generalRows = generales.flatMap(g =>
-      inquilinos.map(inq => [
-        serviciosMap[g.servicioId] || g.servicioId,
-        g.empresa,
-        g.numeroFactura || '-',
-        g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
-        formatCurrency(g.importe),
-        `${inq.apellido}, ${inq.nombre}`,
-        suParte(g.importe)
-      ])
-    )
+    const suParte = importe => formatCurrency(importe / (inquilinos.length || 1))
 
     autoTable(doc, {
+      ...tableOpts,
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe Total', 'Inquilino', 'Su Parte']],
-      body: generalRows,
-      theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235], fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
+      body: generales.flatMap(g =>
+        inquilinos.map(inq => [
+          serviciosMap[g.servicioId] || g.servicioId,
+          g.empresa,
+          g.numeroFactura || '-',
+          g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
+          formatCurrency(g.importe),
+          `${inq.apellido}, ${inq.nombre}`,
+          suParte(g.importe),
+        ])
+      ),
       columnStyles: {
         0: { cellWidth: 24 },
         1: { cellWidth: 28 },
@@ -278,29 +473,25 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
         3: { cellWidth: 22 },
         4: { cellWidth: 24, halign: 'right' },
         5: { cellWidth: 38 },
-        6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+        6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
       },
-      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED }
+      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Cargos Particulares
-  const particulares = gastos.filter(g => g.tipo === 'particular')
+  // ── Cargos particulares
   if (particulares.length > 0) {
-    // Salto de página si no hay espacio para el título + al menos una fila
-    if (currentY + 20 > CONTENT_BOTTOM) {
-      doc.addPage()
-      currentY = 20
-    }
+    if (currentY + 20 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
 
-    doc.setFontSize(11)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(220, 38, 38)
+    doc.setTextColor(...C.danger)
     doc.text('Cargos Particulares', 14, currentY)
     currentY += 4
 
     autoTable(doc, {
+      ...tableOpts,
       startY: currentY,
       head: [['Inquilino', 'Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Importe']],
       body: particulares.map(g => {
@@ -311,164 +502,132 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
           g.empresa,
           g.numeroFactura || '-',
           g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
-          formatCurrency(g.importe)
+          formatCurrency(g.importe),
         ]
       }),
-      theme: 'striped',
-      headStyles: { fillColor: [220, 38, 38], fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
       columnStyles: { 5: { halign: 'right', fontStyle: 'bold' } },
-      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED }
+      margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
     currentY = doc.lastAutoTable.finalY + 8
   }
 
-  // Totales finales — salto de página si no hay espacio (caja de 24mm + margen)
-  if (currentY + 28 > CONTENT_BOTTOM) {
-    doc.addPage()
-    currentY = 20
-  }
+  // ── Totales finales
+  if (currentY + 32 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
 
-  const totalGenerales = generales.reduce((s, g) => s + Number(g.importe), 0)
-  const totalParticulares = particulares.reduce((s, g) => s + Number(g.importe), 0)
-
-  doc.setFillColor(245, 245, 245)
-  doc.rect(14, currentY, pageWidth - 28, 20, 'F')
-  doc.setDrawColor(200, 200, 200)
-  doc.rect(14, currentY, pageWidth - 28, 20)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(60, 60, 60)
-  doc.text(`Total Cargos Generales: ${formatCurrency(totalGenerales)}`, 20, currentY + 7)
-  doc.text(`Total Cargos Particulares: ${formatCurrency(totalParticulares)}`, 20, currentY + 14)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(37, 99, 235)
-  doc.text(`TOTAL PERÍODO: ${formatCurrency(totalGenerales + totalParticulares)}`, pageWidth - 18, currentY + 11, { align: 'right' })
-
-  addFooter(doc, pageWidth, pageHeight, footer)
-
-  // Nombre: "Historial de Expensas_Mes_Año" — ej: "Historial de Expensas_Abril_2026"
-  const nombrePeriodo = formatPeriodo(periodo).replace(' ', '_')
-  doc.save(`Historial de Expensas_${nombrePeriodo}.pdf`)
-}
-
-// ── Estado de Cuenta ──────────────────────────────────────────────────────
-// filas: [{ periodo, expensas, alquiler, mora, tiempoMora, estado, total, fechaPago }]
-export async function generateEstadoCuentaPDF(inquilino, filas) {
-  const footer = await resolveFooter()
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const FOOTER_RESERVED = 60
-  const CONTENT_BOTTOM = pageHeight - FOOTER_RESERVED
-
-  const fc = (n) => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-  // Encabezado
-  doc.setFillColor(37, 99, 235)
-  doc.rect(0, 0, pageWidth, 32, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.setTextColor(255, 255, 255)
-  doc.text('ExpensasPlus', 14, 14)
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Estado de Cuenta', 14, 22)
-  doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, pageWidth - 14, 22, { align: 'right' })
-
-  // Datos del inquilino
-  let currentY = 40
-  doc.setFillColor(239, 246, 255)
-  doc.rect(14, currentY, pageWidth - 28, 22, 'F')
-  doc.setDrawColor(37, 99, 235)
-  doc.setLineWidth(0.3)
-  doc.rect(14, currentY, pageWidth - 28, 22)
-
-  doc.setFontSize(9)
-  doc.setTextColor(37, 99, 235)
-  doc.setFont('helvetica', 'bold')
-  doc.text('INQUILINO', 18, currentY + 7)
-  doc.setTextColor(30, 30, 30)
-  doc.setFont('helvetica', 'normal')
-  doc.text(`${inquilino.apellido}, ${inquilino.nombre}`, 18, currentY + 13)
-  doc.text(`Depto: ${inquilino.departamento}`, 18, currentY + 19)
-
-  const col2 = pageWidth / 2 + 10
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(37, 99, 235)
-  doc.text('ALQUILER', col2, currentY + 7)
-  doc.setTextColor(30, 30, 30)
-  doc.setFont('helvetica', 'normal')
-  if (inquilino.precioAlquiler) doc.text(`Precio: $${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}`, col2, currentY + 13)
-  if (inquilino.cicloActualizacion) doc.text(`Ciclo: ${inquilino.cicloActualizacion}`, col2, currentY + 19)
-
-  currentY += 30
-
-  // Tabla de períodos
-  const rows = filas.map(f => [
-    formatPeriodo(f.periodo),
-    fc(f.expensas),
-    fc(f.alquiler),
-    f.mora > 0 ? `${fc(f.mora)}${f.tiempoMora ? `\n${f.tiempoMora}` : ''}` : '—',
-    fc(f.total),
-    f.estado === 'pagado' ? 'Pagado' : f.estado === 'impago' ? 'Impago' : 'Pendiente',
-    f.fechaPago ? new Date(f.fechaPago).toLocaleDateString('es-AR') : '—'
+  const totGen = generales.reduce((s, g)   => s + Number(g.importe), 0)
+  const totPar = particulares.reduce((s, g) => s + Number(g.importe), 0)
+  addTotalBox(doc, pageWidth, currentY, [
+    { label: 'Total Cargos Generales',   value: formatCurrency(totGen) },
+    { label: 'Total Cargos Particulares', value: formatCurrency(totPar) },
+    { label: 'TOTAL PERÍODO',            value: formatCurrency(totGen + totPar), big: true },
   ])
 
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
+  doc.save(`Historial de Expensas_${formatPeriodo(periodo).replace(' ', '_')}.pdf`)
+}
+
+// ── PDF Estado de Cuenta ──────────────────────────────────────────────────────
+// filas: [{ periodo, expensas, alquiler, mora, tiempoMora, estado, total, fechaPago }]
+export async function generateEstadoCuentaPDF(inquilino, filas) {
+  const [footer, logoAdmin] = await Promise.all([
+    resolveFooter(),
+    loadImageAsBase64('/expensas-plus/logo-admin.png'),
+  ])
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const pageWidth  = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const FOOTER_RESERVED = 65
+  const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
+  const fc = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  fillPageBg(doc, pageWidth, pageHeight)
+
+  let currentY = addHeader(
+    doc, pageWidth,
+    'ExpensasPlus',
+    'Estado de Cuenta',
+    '',
+    `Fecha: ${new Date().toLocaleDateString('es-AR')}`
+  )
+
+  // Datos del inquilino
+  currentY = addInquilinoBox(
+    doc, pageWidth, currentY,
+    'INQUILINO',
+    [
+      `${inquilino.apellido}, ${inquilino.nombre}`,
+      `Depto: ${inquilino.departamento}`,
+    ],
+    'ALQUILER',
+    [
+      inquilino.precioAlquiler ? `Precio: $${Number(inquilino.precioAlquiler).toLocaleString('es-AR')}` : '-',
+      inquilino.cicloActualizacion ? `Ciclo: ${inquilino.cicloActualizacion}` : '',
+    ].filter(Boolean)
+  )
+
+  // Tabla de períodos con badges de estado
+  const tableOpts = darkTableOptions(doc, pageWidth, pageHeight, {
+    didParseCell(data) {
+      if (data.column.index === 5 && data.section === 'body') {
+        const val = data.cell.raw
+        if (val === 'Pagado') {
+          data.cell.styles.textColor = C.success
+          data.cell.styles.fillColor = C.successSoft
+        } else if (val === 'Impago') {
+          data.cell.styles.textColor = C.danger
+          data.cell.styles.fillColor = C.dangerSoft
+        } else {
+          data.cell.styles.textColor = C.warning
+          data.cell.styles.fillColor = C.warningSoft
+        }
+      }
+    },
+  })
+
   autoTable(doc, {
+    ...tableOpts,
     startY: currentY,
     head: [['Período', 'Expensas', 'Alquiler', 'Mora', 'Total', 'Estado', 'Fecha Pago']],
-    body: rows,
-    theme: 'striped',
-    headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 8 },
+    body: filas.map(f => [
+      formatPeriodo(f.periodo),
+      fc(f.expensas),
+      fc(f.alquiler),
+      f.mora > 0 ? `${fc(f.mora)}${f.tiempoMora ? `\n${f.tiempoMora}` : ''}` : '—',
+      fc(f.total),
+      f.estado === 'pagado' ? 'Pagado' : f.estado === 'impago' ? 'Impago' : 'Pendiente',
+      f.fechaPago ? new Date(f.fechaPago).toLocaleDateString('es-AR') : '—',
+    ]),
     columnStyles: {
       0: { cellWidth: 26 },
       1: { cellWidth: 26, halign: 'right' },
       2: { cellWidth: 26, halign: 'right' },
-      3: { cellWidth: 32, halign: 'right' },
+      3: { cellWidth: 30, halign: 'right' },
       4: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
       5: { cellWidth: 22, halign: 'center' },
-      6: { cellWidth: 24, halign: 'center' }
+      6: { cellWidth: 26, halign: 'center' },
     },
-    didParseCell(data) {
-      if (data.column.index === 5 && data.section === 'body') {
-        const val = data.cell.raw
-        if (val === 'Pagado') data.cell.styles.textColor = [22, 163, 74]
-        else if (val === 'Impago') data.cell.styles.textColor = [220, 38, 38]
-        else data.cell.styles.textColor = [100, 116, 139]
-      }
-    },
-    margin: { left: 14, right: 14, bottom: FOOTER_RESERVED }
+    margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
   })
   currentY = doc.lastAutoTable.finalY + 8
 
   // Totales
-  if (currentY + 20 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
-  const totExp = filas.reduce((s, f) => s + f.expensas, 0)
-  const totAlq = filas.reduce((s, f) => s + f.alquiler, 0)
-  const totMora = filas.reduce((s, f) => s + f.mora, 0)
-  const totTotal = filas.reduce((s, f) => s + f.total, 0)
+  if (currentY + 36 > CONTENT_BOTTOM) { doc.addPage(); fillPageBg(doc, pageWidth, pageHeight); currentY = 20 }
 
-  doc.setFillColor(245, 245, 245)
-  doc.rect(14, currentY, pageWidth - 28, 18, 'F')
-  doc.setDrawColor(200, 200, 200)
-  doc.rect(14, currentY, pageWidth - 28, 18)
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(60, 60, 60)
-  doc.text(`Total expensas: ${fc(totExp)}`, 18, currentY + 7)
-  doc.text(`Total alquiler: ${fc(totAlq)}`, 18, currentY + 13)
-  doc.text(`Total mora: ${fc(totMora)}`, pageWidth / 2, currentY + 7)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(37, 99, 235)
-  doc.text(`TOTAL: ${fc(totTotal)}`, pageWidth - 18, currentY + 11, { align: 'right' })
+  const totExp  = filas.reduce((s, f) => s + f.expensas, 0)
+  const totAlq  = filas.reduce((s, f) => s + f.alquiler, 0)
+  const totMora = filas.reduce((s, f) => s + f.mora,     0)
+  const totTot  = filas.reduce((s, f) => s + f.total,    0)
 
-  addFooter(doc, pageWidth, pageHeight, footer)
+  addTotalBox(doc, pageWidth, currentY, [
+    { label: 'Total expensas',  value: fc(totExp)  },
+    { label: 'Total alquiler',  value: fc(totAlq)  },
+    { label: 'Total mora',      value: fc(totMora) },
+    { label: 'TOTAL',           value: fc(totTot),  big: true },
+  ])
 
-  // Nombre: "Estado de Cuenta_NombreApellido_Mes_Año"
+  addFooter(doc, pageWidth, pageHeight, footer, logoAdmin)
+
   const hoy = new Date()
   const mesActual = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio',
     'Agosto','Septiembre','Octubre','Noviembre','Diciembre'][hoy.getMonth()]
