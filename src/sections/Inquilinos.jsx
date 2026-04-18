@@ -40,11 +40,28 @@ export default function Inquilinos() {
 
   async function handleSave(e) {
     e.preventDefault()
+    const trimmedForm = {
+      ...form,
+      nombre:       form.nombre.trim(),
+      apellido:     form.apellido.trim(),
+      departamento: form.departamento.trim(),
+    }
+    if (!trimmedForm.nombre || !trimmedForm.apellido || !trimmedForm.departamento) {
+      setPopup('Completá los campos obligatorios: Nombre, Apellido y Departamento.')
+      return
+    }
+    const duplicado = await db.inquilinos
+      .filter(i => i.departamento?.trim() === trimmedForm.departamento && i.id !== editingId)
+      .first()
+    if (duplicado) {
+      setPopup(`El departamento "${trimmedForm.departamento}" ya está asignado a ${duplicado.apellido}, ${duplicado.nombre}.`)
+      return
+    }
     if (editingId) {
-      await db.inquilinos.update(editingId, form)
+      await db.inquilinos.update(editingId, trimmedForm)
       setPopup('¡Inquilino actualizado!')
     } else {
-      await db.inquilinos.add(form)
+      await db.inquilinos.add(trimmedForm)
       setPopup('¡Inquilino agregado!')
     }
     setShowForm(false)
@@ -121,6 +138,7 @@ export default function Inquilinos() {
             <button type="submit" className="btn-primary">Guardar</button>
           </div>
         </form>
+        {popup && <Popup message={popup} onClose={() => setPopup(null)} />}
       </div>
     )
   }

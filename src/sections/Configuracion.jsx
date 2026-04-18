@@ -97,24 +97,25 @@ export default function Configuracion() {
       const valido = tablas.some(t => Array.isArray(data[t]))
       if (!valido) throw new Error('estructura inválida')
 
-      // Borrar y reimportar cada tabla
-      await Promise.all([
-        db.inquilinos.clear(),
-        db.servicios.clear(),
-        db.gastos.clear(),
-        db.periodos.clear(),
-        db.pagos.clear(),
-        db.config.clear()
-      ])
-
-      await Promise.all([
-        data.inquilinos?.length ? db.inquilinos.bulkAdd(data.inquilinos) : Promise.resolve(),
-        data.servicios?.length  ? db.servicios.bulkAdd(data.servicios)   : Promise.resolve(),
-        data.gastos?.length     ? db.gastos.bulkAdd(data.gastos)         : Promise.resolve(),
-        data.periodos?.length   ? db.periodos.bulkAdd(data.periodos)     : Promise.resolve(),
-        data.pagos?.length      ? db.pagos.bulkAdd(data.pagos)           : Promise.resolve(),
-        data.config?.length     ? db.config.bulkAdd(data.config)         : Promise.resolve()
-      ])
+      // Borrar y reimportar dentro de una transacción: si algo falla, se revierte todo
+      await db.transaction('rw', [db.inquilinos, db.servicios, db.gastos, db.periodos, db.pagos, db.config], async () => {
+        await Promise.all([
+          db.inquilinos.clear(),
+          db.servicios.clear(),
+          db.gastos.clear(),
+          db.periodos.clear(),
+          db.pagos.clear(),
+          db.config.clear()
+        ])
+        await Promise.all([
+          data.inquilinos?.length ? db.inquilinos.bulkAdd(data.inquilinos) : Promise.resolve(),
+          data.servicios?.length  ? db.servicios.bulkAdd(data.servicios)   : Promise.resolve(),
+          data.gastos?.length     ? db.gastos.bulkAdd(data.gastos)         : Promise.resolve(),
+          data.periodos?.length   ? db.periodos.bulkAdd(data.periodos)     : Promise.resolve(),
+          data.pagos?.length      ? db.pagos.bulkAdd(data.pagos)           : Promise.resolve(),
+          data.config?.length     ? db.config.bulkAdd(data.config)         : Promise.resolve()
+        ])
+      })
 
       // Recargar datos en el formulario
       const row = await db.config.get('admin')

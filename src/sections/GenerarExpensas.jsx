@@ -1,18 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import { generateInquilinoPDF } from '../utils/pdfGenerator'
-
-function periodoLabel(p) {
-  if (!p) return ''
-  const [y, m] = p.split('-')
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${meses[parseInt(m)-1]} ${y}`
-}
-
-function formatCurrency(amount) {
-  return `$${Number(amount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+import { periodoLabel, formatCurrency } from '../utils/helpers'
 
 export default function GenerarExpensas() {
   const [inquilinos, setInquilinos] = useState([])
@@ -37,7 +26,7 @@ export default function GenerarExpensas() {
   async function selectInquilino(inq) {
     setSelected(inq)
     const allGastos = await db.gastos.where('periodo').equals(periodo).toArray()
-    const totalInqs = await db.inquilinos.count()
+    const totalInqs = await db.inquilinos.filter(i => i.estadoContrato === 'Activo').count() || 1
     const generales = allGastos
       .filter(g => g.tipo === 'general')
       .map(g => ({ ...g, servicio: serviciosMap[g.servicioId] || '?' }))

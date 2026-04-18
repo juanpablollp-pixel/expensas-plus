@@ -2,6 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { getAdminConfig } from '../db'
+import { periodoLabel, formatCurrency } from './helpers'
 
 // ── Paleta de colores ────────────────────────────────────────────────────────
 const C = {
@@ -25,18 +26,6 @@ async function resolveFooter() {
   const saved = await getAdminConfig()
   if (saved && saved.administrador) return saved
   return PDF_FOOTER_DEFAULT
-}
-
-function formatCurrency(n) {
-  return `$${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function formatPeriodo(periodo) {
-  if (!periodo) return ''
-  const [year, month] = periodo.split('-')
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${meses[parseInt(month) - 1]} ${year}`
 }
 
 /**
@@ -118,8 +107,6 @@ function addHeader(doc, pageWidth, logoExpensas, docType, periodLine, dateLine) 
   doc.setFillColor(...C.dark)
   doc.roundedRect(HX, HY, HW, HH, 8, 8, 'F')
 
-  // Logo de la app a la izquierda (logo-expensas.png).
-  // Reemplazá la carga por la imagen definitiva cuando esté disponible.
   if (logoExpensas) {
     const fit    = fitInBounds(logoExpensas.dims.w, logoExpensas.dims.h, 90, 32)
     const logoX  = HX + 6
@@ -160,7 +147,6 @@ function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabe
   const labelY = startY + 8
 
   function drawColumn(label, lines, x) {
-    // Etiqueta de sección en violeta
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...C.accent)
@@ -169,11 +155,9 @@ function addInquilinoBox(doc, pageWidth, startY, leftLabel, leftLines, rightLabe
     lines.forEach((line, i) => {
       const y = labelY + 5 + i * LINE_H
       if (i === 0) {
-        // Primera línea: nombre/depto en bold 10
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(10)
       } else {
-        // Resto: texto normal 9
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
       }
@@ -220,13 +204,11 @@ function addTotalBox(doc, pageWidth, startY, lines) {
 /**
  * Pie de página: línea navy, logo admin circular a la izquierda,
  * datos del administrador en dos columnas.
- * logoAdminB64: string base64 (circular cropped) | null
  */
 function addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64) {
   const FY = pageHeight - 50
   const FX = 14
 
-  // Línea separadora
   doc.setDrawColor(...C.dark)
   doc.setLineWidth(0.5)
   doc.line(FX, FY + 5, pageWidth - FX, FY + 5)
@@ -234,8 +216,6 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64) {
   const LOGO_SIZE = 22
   let col1X = FX + 6
 
-  // Logo administrador circular a la izquierda.
-  // Colocá logo-admin.png en public/ para que aparezca aquí.
   if (logoAdminB64) {
     try {
       doc.addImage(logoAdminB64, 'PNG', FX + 6, FY + 9, LOGO_SIZE, LOGO_SIZE, '', 'FAST')
@@ -245,13 +225,11 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64) {
 
   const col2X = pageWidth / 2 + 8
 
-  // Nombre del administrador
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
   doc.setTextColor(...C.textDark)
   doc.text(footer.administrador || '', col1X, FY + 14)
 
-  // Columna 1
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   const left = [
@@ -267,7 +245,6 @@ function addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64) {
     doc.text(val || '', col1X + doc.getTextWidth(`${lbl}: `), y)
   })
 
-  // Columna 2
   const right = [
     ['CBU',   footer.cbu],
     ['Alias', footer.alias],
@@ -329,11 +306,10 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
   let currentY = addHeader(
     doc, pageWidth, logoExpensas,
     'Liquidación de Expensas',
-    `Período: ${formatPeriodo(periodo)}`,
+    `Período: ${periodoLabel(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
-  // Datos del inquilino
   doc.setFontSize(8)
   const domMaxW = (pageWidth - 28) / 2 - 16
   const domLines = inquilino.domicilio
@@ -432,7 +408,10 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
 }
 
 // ── PDF Historial ─────────────────────────────────────────────────────────────
-export async function generateHistorialPDF(periodo, gastos, inquilinos, serviciosMap) {
+// activeCount: cantidad de inquilinos activos (divisor para "su parte")
+export async function generateHistorialPDF(periodo, gastos, inquilinos, serviciosMap, activeCount) {
+  const divisor = activeCount || inquilinos.length || 1
+
   const [footer, logoExpensas, logoAdminRaw] = await Promise.all([
     resolveFooter(),
     loadImageWithDimensions('/expensas-plus/logo-expensas.png'),
@@ -451,14 +430,14 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
   let currentY = addHeader(
     doc, pageWidth, logoExpensas,
     'Detalle Completo de Período',
-    `Período: ${formatPeriodo(periodo)}`,
+    `Período: ${periodoLabel(periodo)}`,
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
   const opts        = tableOptions()
   const generales   = gastos.filter(g => g.tipo === 'general')
   const particulares = gastos.filter(g => g.tipo === 'particular')
-  const suParte      = importe => formatCurrency(importe / (inquilinos.length || 1))
+  const suParte      = importe => formatCurrency(importe / divisor)
 
   // ── Cargos generales
   if (generales.length > 0) {
@@ -540,7 +519,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
   ])
 
   addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64)
-  doc.save(`Historial de Expensas_${formatPeriodo(periodo).replace(' ', '_')}.pdf`)
+  doc.save(`Historial de Expensas_${periodoLabel(periodo).replace(' ', '_')}.pdf`)
 }
 
 // ── PDF Estado de Cuenta ──────────────────────────────────────────────────────
@@ -560,7 +539,6 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   const pageHeight = doc.internal.pageSize.getHeight()
   const FOOTER_RESERVED = 55
   const CONTENT_BOTTOM  = pageHeight - FOOTER_RESERVED
-  const fc = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   let currentY = addHeader(
     doc, pageWidth, logoExpensas,
@@ -569,7 +547,6 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
     `Fecha: ${new Date().toLocaleDateString('es-AR')}`
   )
 
-  // Datos del inquilino
   currentY = addInquilinoBox(
     doc, pageWidth, currentY,
     'INQUILINO',
@@ -586,7 +563,6 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
     ].filter(Boolean)
   )
 
-  // Tabla con badges de estado coloreados
   const opts = tableOptions({
     didParseCell(data) {
       if (data.column.index === 5 && data.section === 'body') {
@@ -610,11 +586,11 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
     startY: currentY,
     head: [['PERÍODO', 'EXPENSAS', 'ALQUILER', 'MORA', 'TOTAL', 'ESTADO', 'FECHA PAGO']],
     body: filas.map(f => [
-      formatPeriodo(f.periodo),
-      fc(f.expensas),
-      fc(f.alquiler),
-      f.mora > 0 ? `${fc(f.mora)}${f.tiempoMora ? `\n${f.tiempoMora}` : ''}` : '—',
-      fc(f.total),
+      periodoLabel(f.periodo),
+      formatCurrency(f.expensas),
+      formatCurrency(f.alquiler),
+      f.mora > 0 ? `${formatCurrency(f.mora)}${f.tiempoMora ? `\n${f.tiempoMora}` : ''}` : '—',
+      formatCurrency(f.total),
       f.estado === 'pagado' ? 'Pagado' : f.estado === 'impago' ? 'Impago' : 'Pendiente',
       f.fechaPago ? new Date(f.fechaPago).toLocaleDateString('es-AR') : '—',
     ]),
@@ -631,14 +607,13 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
   })
   currentY = doc.lastAutoTable.finalY + 8
 
-  // Totales
   if (currentY + 38 > CONTENT_BOTTOM) { doc.addPage(); currentY = 20 }
 
   addTotalBox(doc, pageWidth, currentY, [
-    { label: 'Total expensas', value: fc(filas.reduce((s, f) => s + f.expensas, 0)) },
-    { label: 'Total alquiler', value: fc(filas.reduce((s, f) => s + f.alquiler, 0)) },
-    { label: 'Total mora',     value: fc(filas.reduce((s, f) => s + f.mora,     0)) },
-    { label: 'TOTAL',          value: fc(filas.reduce((s, f) => s + f.total,    0)), big: true },
+    { label: 'Total expensas', value: formatCurrency(filas.reduce((s, f) => s + f.expensas, 0)) },
+    { label: 'Total alquiler', value: formatCurrency(filas.reduce((s, f) => s + f.alquiler, 0)) },
+    { label: 'Total mora',     value: formatCurrency(filas.reduce((s, f) => s + f.mora,     0)) },
+    { label: 'TOTAL',          value: formatCurrency(filas.reduce((s, f) => s + f.total,    0)), big: true },
   ])
 
   addFooter(doc, pageWidth, pageHeight, footer, logoAdminB64)

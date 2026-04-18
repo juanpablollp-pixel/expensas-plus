@@ -3,18 +3,7 @@ import { db } from '../db'
 import { generateHistorialPDF } from '../utils/pdfGenerator'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
-
-function periodoLabel(p) {
-  if (!p) return ''
-  const [y, m] = p.split('-')
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${meses[parseInt(m)-1]} ${y}`
-}
-
-function formatCurrency(amount) {
-  return `$${Number(amount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+import { periodoLabel, formatCurrency } from '../utils/helpers'
 
 export default function Historial() {
   const [periodos, setPeriodos] = useState([])
@@ -39,14 +28,15 @@ export default function Historial() {
     const servicios = await db.servicios.toArray()
     const serviciosMap = {}
     servicios.forEach(s => { serviciosMap[s.id] = s.nombre })
-    setDetalle({ gastos, inquilinos, serviciosMap })
+    const activeCount = inquilinos.filter(i => i.estadoContrato === 'Activo').length || 1
+    setDetalle({ gastos, inquilinos, serviciosMap, activeCount })
   }
 
   async function handleExport() {
     if (!selected || !detalle) return
     setGenerating(true)
     try {
-      await generateHistorialPDF(selected, detalle.gastos, detalle.inquilinos, detalle.serviciosMap)
+      await generateHistorialPDF(selected, detalle.gastos, detalle.inquilinos, detalle.serviciosMap, detalle.activeCount)
     } finally {
       setGenerating(false)
     }
@@ -121,7 +111,7 @@ export default function Historial() {
                             <td>{g.numeroFactura || '-'}</td>
                             <td>{g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-'}</td>
                             <td>{formatCurrency(g.importe)}</td>
-                            <td><strong>{formatCurrency(g.importe / (detalle.inquilinos.length || 1))}</strong></td>
+                            <td><strong>{formatCurrency(g.importe / detalle.activeCount)}</strong></td>
                           </tr>
                         ))}
                       </tbody>

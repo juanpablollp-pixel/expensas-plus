@@ -2,15 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-function periodoLabel(p) {
-  if (!p) return ''
-  const [y, m] = p.split('-')
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${meses[parseInt(m)-1]} ${y}`
-}
+import { periodoLabel } from '../utils/helpers'
 
 const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '' }
 
@@ -282,11 +274,15 @@ export default function CargarGastos() {
   if (step === 'formGeneral' || step === 'formParticular') {
     async function submitGasto(e) {
       e.preventDefault()
+      if (form.fechaEmision && form.fechaVencimiento && form.fechaVencimiento < form.fechaEmision) {
+        setPopup('La fecha de vencimiento no puede ser anterior a la fecha de emisión.')
+        return
+      }
       const data = {
         periodo,
         servicioId: selectedServicio.id,
         tipo: isParticular ? 'particular' : 'general',
-        empresa: form.empresa,
+        empresa: form.empresa.trim(),
         importe: parseFloat(form.importe),
         fechaEmision: form.fechaEmision,
         fechaVencimiento: form.fechaVencimiento,
@@ -301,7 +297,7 @@ export default function CargarGastos() {
       setForm(EMPTY_GASTO)
       setEditingGastoId(null)
       await loadGastosServicio(selectedServicio.id, periodo)
-      setPopup('¡Gasto Agregado!')
+      setPopup(editingGastoId ? '¡Cambios guardados!' : '¡Gasto agregado!')
       setStep('tipoCargoMenu')
     }
 

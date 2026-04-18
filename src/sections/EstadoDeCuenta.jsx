@@ -3,19 +3,9 @@ import { db } from '../db'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
 import { generateEstadoCuentaPDF } from '../utils/pdfGenerator'
+import { periodoLabel, formatCurrency } from '../utils/helpers'
 
 // ── helpers ──────────────────────────────────────────────────────────────
-function formatPeriodo(p) {
-  if (!p) return ''
-  const [y, m] = p.split('-')
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${meses[parseInt(m) - 1]} ${y}`
-}
-
-function formatCurrency(n) {
-  return `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 // Calcula el estado y mora de un período para un inquilino dado
 function calcEstado(periodo, precioAlquiler, tem, pagoRegistrado) {
@@ -36,7 +26,6 @@ function calcEstado(periodo, precioAlquiler, tem, pagoRegistrado) {
 
   // Mora acumulada desde el día 11
   const msTranscurridos = ahora - dia11
-  const moraDiariaMs = ((Number(precioAlquiler) * (Number(tem) / 100)) / 30) * 24 * 60 * 60 * 1000
   const moraTotal = (msTranscurridos / (24 * 60 * 60 * 1000)) * ((Number(precioAlquiler) * (Number(tem) / 100)) / 30)
 
   const totalMinutos = Math.floor(msTranscurridos / 60000)
@@ -49,7 +38,6 @@ function calcEstado(periodo, precioAlquiler, tem, pagoRegistrado) {
   else if (horas > 0) tiempoMora = `${horas} hora${horas !== 1 ? 's' : ''}, ${minutos} min`
   else tiempoMora = `${minutos} min`
 
-  void moraDiariaMs // suprime warning de variable no usada
   return { estado: 'impago', mora: moraTotal, tiempoMora }
 }
 
@@ -263,7 +251,7 @@ export default function EstadoDeCuenta() {
 
                 return (
                   <tr key={p}>
-                    <td><strong>{formatPeriodo(p)}</strong></td>
+                    <td><strong>{periodoLabel(p)}</strong></td>
                     <td>{formatCurrency(expensas)}</td>
                     <td>{formatCurrency(alquiler)}</td>
                     <td>
@@ -314,7 +302,7 @@ export default function EstadoDeCuenta() {
 
       {confirmPago && (
         <ConfirmDialog
-          message={`¿Registrar el pago de ${formatPeriodo(confirmPago)}? Se guardará la fecha, hora y mora acumulada hasta este momento.`}
+          message={`¿Registrar el pago de ${periodoLabel(confirmPago)}? Se guardará la fecha, hora y mora acumulada hasta este momento.`}
           cancelLabel="Cancelar"
           confirmLabel="Confirmar pago"
           onCancel={() => setConfirmPago(null)}
