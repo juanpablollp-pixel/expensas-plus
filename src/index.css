@@ -1,8 +1,10 @@
+@import "tailwindcss";
+
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #0f0f0f;
   color: #f0f0f0;
 }
