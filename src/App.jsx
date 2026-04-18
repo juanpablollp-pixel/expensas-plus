@@ -1,100 +1,161 @@
 import React, { useState } from 'react'
-import { LayoutDashboard, Receipt, FileText, Users, History, Settings } from 'lucide-react'
 import CargarGastos    from './sections/CargarGastos'
 import GenerarExpensas from './sections/GenerarExpensas'
 import Inquilinos      from './sections/Inquilinos'
 import Historial       from './sections/Historial'
 import Configuracion   from './sections/Configuracion'
 import EstadoDeCuenta  from './sections/EstadoDeCuenta'
+
+import IconCargarGastos    from './components/icons/IconCargarGastos'
+import IconGenerarExpensas from './components/icons/IconGenerarExpensas'
+import IconInquilinos      from './components/icons/IconInquilinos'
+import IconHistorial       from './components/icons/IconHistorial'
+import IconEstadoCuenta    from './components/icons/IconEstadoCuenta'
+import IconConfiguracion   from './components/icons/IconConfiguracion'
+
 import './App.css'
 
-const TABS = [
-  { id: 'gastos',       label: 'Gastos',     Icon: Receipt         },
-  { id: 'expensas',     label: 'Expensas',   Icon: FileText        },
-  { id: 'estadocuenta', label: 'Cuenta',     Icon: LayoutDashboard },
-  { id: 'inquilinos',   label: 'Inquilinos', Icon: Users           },
-  { id: 'historial',    label: 'Historial',  Icon: History         },
+const SECTIONS = [
+  { id: 'gastos',        label: 'Cargar Gastos',    Icon: IconCargarGastos    },
+  { id: 'expensas',      label: 'Generar Expensas', Icon: IconGenerarExpensas },
+  { id: 'inquilinos',    label: 'Inquilinos',        Icon: IconInquilinos      },
+  { id: 'historial',     label: 'Historial',         Icon: IconHistorial       },
+  { id: 'estadocuenta',  label: 'Estado de Cuenta',  Icon: IconEstadoCuenta    },
+  { id: 'configuracion', label: 'Configuración',     Icon: IconConfiguracion   },
 ]
 
-export default function App() {
-  const [active,     setActive]     = useState('estadocuenta')
-  const [showConfig, setShowConfig] = useState(false)
+function FabDotsIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+      <circle cx="12" cy="5"  r="1.8"/>
+      <circle cx="12" cy="12" r="1.8"/>
+      <circle cx="12" cy="19" r="1.8"/>
+    </svg>
+  )
+}
 
-  function nav(id) {
+function FabCloseIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+      stroke="white" strokeWidth="2" strokeLinecap="round">
+      <line x1="18" y1="6"  x2="6"  y2="18"/>
+      <line x1="6"  y1="6"  x2="18" y2="18"/>
+    </svg>
+  )
+}
+
+export default function App() {
+  const [active,   setActive]   = useState(null)
+  const [fabOpen,  setFabOpen]  = useState(false)
+
+  function handleNav(id) {
     setActive(id)
-    setShowConfig(false)
+    setFabOpen(false)
   }
 
   function renderSection() {
-    if (showConfig) return <Configuracion />
     switch (active) {
-      case 'gastos':       return <CargarGastos />
-      case 'expensas':     return <GenerarExpensas />
-      case 'inquilinos':   return <Inquilinos />
-      case 'historial':    return <Historial />
-      case 'estadocuenta': return <EstadoDeCuenta />
-      default:             return <EstadoDeCuenta />
+      case 'gastos':        return <CargarGastos />
+      case 'expensas':      return <GenerarExpensas />
+      case 'inquilinos':    return <Inquilinos />
+      case 'historial':     return <Historial />
+      case 'estadocuenta':  return <EstadoDeCuenta />
+      case 'configuracion': return <Configuracion />
+      default:              return null
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#0F0F0F] text-white flex justify-center">
-      <div className="relative w-full max-w-[480px] bg-[#0F0F0F] min-h-screen flex flex-col border-x border-[#1E1E1E]">
+    <div className="app">
 
-        {/* ── Sticky top header ─────────────────────────── */}
-        <header className="sticky top-0 z-20 flex items-center justify-between px-5 py-3 bg-[#0F0F0F]/80 backdrop-blur-md border-b border-white/5 flex-shrink-0">
+      {/* ── Sidebar (desktop) ───────────────────── */}
+      <nav className="sidebar">
+        <div className="sidebar-brand">
           <img
             src="/expensas-plus/logo-expensas.png"
             alt="ExpensasPlus"
-            className="h-8 w-auto"
+            style={{ width: '140px', height: 'auto' }}
           />
-          <button
-            onClick={() => setShowConfig(c => !c)}
-            aria-label="Configuración"
-            className={`p-2 rounded-full transition-colors ${
-              showConfig
-                ? 'bg-[#4B5EF7] text-white'
-                : 'text-[#757575] hover:text-white hover:bg-[#1E1E1E]'
-            }`}
-          >
-            <Settings size={20} />
-          </button>
-        </header>
+        </div>
 
-        {/* ── Main scrollable content ────────────────────── */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
-          {renderSection()}
-        </main>
+        <ul className="nav-list">
+          {SECTIONS.map(s => (
+            <li key={s.id}>
+              <button
+                className={`nav-item ${active === s.id ? 'active' : ''}`}
+                onClick={() => handleNav(s.id)}
+              >
+                <div className="nav-icon-wrap"><s.Icon /></div>
+                <span className="nav-label">{s.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
 
-        {/* ── Bottom Tab Bar ─────────────────────────────── */}
-        <nav
-          className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 w-full max-w-[480px] bg-[#0F0F0F]/90 backdrop-blur-lg border-t border-white/10"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}
-        >
-          <div className="flex justify-around items-center px-1 pt-1 pb-1">
-            {TABS.map(({ id, label, Icon }) => {
-              const on = active === id && !showConfig
-              return (
-                <button
-                  key={id}
-                  onClick={() => nav(id)}
-                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-2xl transition-all min-w-[56px] ${
-                    on ? 'text-[#4B5EF7]' : 'text-[#757575] hover:text-white'
-                  }`}
-                >
-                  <div className={`p-1.5 rounded-full transition-all ${on ? 'bg-[#4B5EF7]/15' : ''}`}>
-                    <Icon size={20} strokeWidth={on ? 2.5 : 1.5} />
-                  </div>
-                  <span className={`text-[10px] leading-none ${on ? 'font-bold' : 'font-medium'}`}>
-                    {label}
-                  </span>
+        <div className="sidebar-footer">
+          <span>v1.0 · Offline Ready</span>
+        </div>
+      </nav>
+
+      {/* ── Main content ────────────────────────── */}
+      <main className="main-content">
+        {!active ? (
+          <div className="home-screen">
+            <div className="home-header">
+              <img
+                src="/expensas-plus/logo-expensas.png"
+                alt="ExpensasPlus"
+                style={{ width: '200px', height: 'auto' }}
+              />
+            </div>
+
+            <div className="home-grid">
+              {SECTIONS.map(s => (
+                <button key={s.id} className="home-card" onClick={() => handleNav(s.id)}>
+                  <div className="home-card-icon-wrap"><s.Icon /></div>
+                  <h3>{s.label}</h3>
                 </button>
-              )
-            })}
+              ))}
+            </div>
           </div>
-        </nav>
+        ) : (
+          <div className="section-wrapper">
+            <button className="back-to-home" onClick={() => setActive(null)}>
+              ← Menú principal
+            </button>
+            {renderSection()}
+          </div>
+        )}
+      </main>
 
-      </div>
+      {/* ── FAB (móvil) ─────────────────────────── */}
+      {fabOpen && (
+        <div className="fab-overlay" onClick={() => setFabOpen(false)} />
+      )}
+
+      {fabOpen && (
+        <nav className="fab-menu">
+          {SECTIONS.map(s => (
+            <button
+              key={s.id}
+              className={`fab-item ${active === s.id ? 'active' : ''}`}
+              onClick={() => handleNav(s.id)}
+            >
+              <div className="fab-item-icon"><s.Icon /></div>
+              <span>{s.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
+      <button
+        className={`fab-btn ${fabOpen ? 'open' : ''}`}
+        onClick={() => setFabOpen(o => !o)}
+        aria-label="Navegación"
+      >
+        {fabOpen ? <FabCloseIcon /> : <FabDotsIcon />}
+      </button>
+
     </div>
   )
 }

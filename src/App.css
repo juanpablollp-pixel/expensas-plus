@@ -6,7 +6,7 @@
 :root {
   /* Fondos */
   --bg-primary:   #0f0f0f;
-  --bg-secondary: #1E1E1E;
+  --bg-secondary: #1a1a1a;
   --bg-tertiary:  #242424;
   --bg-hover:     #2e2e2e;
 
@@ -14,10 +14,10 @@
   --border-color: #333333;
   --border-focus: #555555;
 
-  /* Acento (índigo Midnight Modern) */
-  --accent:       #4B5EF7;
-  --accent-hover: #3d4fd4;
-  --accent-soft:  #4B5EF720;
+  /* Acento (violeta moderno) */
+  --accent:       #6c63ff;
+  --accent-hover: #5a52d5;
+  --accent-soft:  #6c63ff20;
 
   /* Texto */
   --text-primary:   #f0f0f0;
@@ -33,7 +33,7 @@
   --danger-soft:  #ef444420;
 
   /* Tipografía */
-  --font:        'Inter', sans-serif;
+  --font:        'Montserrat', sans-serif;
   --fw-light:    300;
   --fw-regular:  400;
   --fw-semibold: 600;
@@ -156,9 +156,40 @@ body {
   color: var(--text-muted);
 }
 
-/* ── FAB / Sidebar / back-to-home — eliminados en nuevo layout ── */
-.fab-btn, .fab-menu, .fab-overlay,
-.back-to-home, .main-content, .section-wrapper { display: none; }
+/* ── FAB — oculto en desktop, visible en móvil ── */
+.fab-btn,
+.fab-menu,
+.fab-overlay { display: none; }
+
+/* ── Main content ───────────────────────────── */
+.main-content {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.back-to-home {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 10px 20px 0;
+  cursor: pointer;
+  font-weight: 500;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+.back-to-home:hover { opacity: 0.75; }
 
 /* ── Home screen ────────────────────────────── */
 .home-screen {
@@ -216,7 +247,7 @@ body {
   border-color: var(--accent);
   background: var(--bg-tertiary);
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(75,94,247,0.2);
+  box-shadow: 0 8px 32px rgba(108,99,255,0.2);
 }
 .home-card-icon-wrap {
   width: 48px;
@@ -251,8 +282,8 @@ body {
 }
 .section-header h2 { font-size: 20px; font-weight: 700; }
 
-h2 { font-size: 20px; font-weight: var(--fw-black); margin-bottom: 20px; color: var(--text-primary); font-family: 'Manrope', sans-serif; }
-h3 { font-size: 15px; font-weight: var(--fw-bold);  margin-bottom: 12px; color: var(--text-primary); font-family: 'Manrope', sans-serif; }
+h2 { font-size: 20px; font-weight: var(--fw-black);   margin-bottom: 20px; color: var(--text-primary); }
+h3 { font-size: 15px; font-weight: var(--fw-bold);    margin-bottom: 12px; color: var(--text-primary); }
 
 /* ── Buttons ────────────────────────────────── */
 button { cursor: pointer; font-family: inherit; }
@@ -261,7 +292,7 @@ button { cursor: pointer; font-family: inherit; }
   background: var(--accent);
   color: #ffffff;
   border: none;
-  border-radius: 9999px;
+  border-radius: 10px;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -272,11 +303,11 @@ button { cursor: pointer; font-family: inherit; }
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 12px rgba(75,94,247,0.3);
+  box-shadow: 0 2px 12px rgba(108,99,255,0.3);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 4px 20px rgba(75,94,247,0.5);
+  box-shadow: 0 4px 20px rgba(108,99,255,0.5);
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled) { transform: translateY(0); }
@@ -286,7 +317,7 @@ button { cursor: pointer; font-family: inherit; }
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  border-radius: 9999px;
+  border-radius: 10px;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: var(--fw-semibold);
@@ -307,7 +338,7 @@ button { cursor: pointer; font-family: inherit; }
   background: var(--danger-soft);
   color: var(--danger);
   border: 1px solid var(--danger);
-  border-radius: 9999px;
+  border-radius: 10px;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -329,7 +360,7 @@ button { cursor: pointer; font-family: inherit; }
   background: var(--success-soft);
   color: var(--success);
   border: 1px solid var(--success);
-  border-radius: 9999px;
+  border-radius: 10px;
   padding: 12px 24px;
   font-size: 14px;
   font-weight: 600;
@@ -350,7 +381,7 @@ button { cursor: pointer; font-family: inherit; }
   padding: 6px 14px;
   font-size: 12px;
   min-height: 36px;
-  border-radius: 9999px;
+  border-radius: 8px;
   letter-spacing: 0;
 }
 .full-width { width: 100%; }
@@ -359,7 +390,7 @@ button { cursor: pointer; font-family: inherit; }
 .form-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 20px;
+  border-radius: var(--radius);
   padding: 20px;
   box-shadow: var(--shadow);
   margin-bottom: 20px;
@@ -485,7 +516,7 @@ button { cursor: pointer; font-family: inherit; }
 .chip-service {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 9999px;
+  border-radius: var(--radius-sm);
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
