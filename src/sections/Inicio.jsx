@@ -116,27 +116,25 @@ export default function Inicio({ onNavigate }) {
       .filter(g => g.tipo === 'general')
       .reduce((s, g) => s + Number(g.importe || 0), 0)
 
-    const expensasPerInq = {}
-    inquilinosActivos.forEach(inq => {
-      const particulares = gastosDelPeriodo
-        .filter(g => g.tipo === 'particular' && g.inquilinoId === inq.id)
-        .reduce((s, g) => s + Number(g.importe || 0), 0)
-      expensasPerInq[inq.id] = (totalGenerales / countActivos) + particulares
-    })
+    // Helper: busca el pago de un inquilino para el período actual
+    // Usa comparación explícita con Number() para evitar problemas de tipos
+    const pagoDeInquilino = (inqId) =>
+      todosPagos.find(
+        p => Number(p.inquilinoId) === Number(inqId) && p.periodo === periodoActual
+      ) ?? null
 
-    // Pagos del período actual
-    const pagosActualMap = {}
-    if (periodoActual) {
-      todosPagos
-        .filter(p => p.periodo === periodoActual)
-        .forEach(p => { pagosActualMap[p.inquilinoId] = p })
+    const expensasDeInquilino = (inqId) => {
+      const particulares = gastosDelPeriodo
+        .filter(g => g.tipo === 'particular' && Number(g.inquilinoId) === Number(inqId))
+        .reduce((s, g) => s + Number(g.importe || 0), 0)
+      return (totalGenerales / countActivos) + particulares
     }
 
     // Card: Inquilinos — detalle por inquilino activo
     const inquilinoRows = inquilinosActivos.map(inq => {
-      const expensas = expensasPerInq[inq.id] || 0
+      const expensas = expensasDeInquilino(inq.id)
       const alquiler = Number(inq.precioAlquiler || 0)
-      const pago = pagosActualMap[inq.id]
+      const pago = pagoDeInquilino(inq.id)
       const mora = pago
         ? (pago.importeMora || 0)
         : calcMoraImporte(periodoActual, alquiler, tem)
@@ -165,14 +163,14 @@ export default function Inicio({ onNavigate }) {
       id: s.id,
       nombre: s.nombre,
       total: gastosDelPeriodo
-        .filter(g => g.servicioId === s.id)
+        .filter(g => Number(g.servicioId) === Number(s.id))
         .reduce((sum, g) => sum + Number(g.importe || 0), 0),
     })).filter(s => s.total > 0)
 
     // Card: Pagos — estado por inquilino activo en período actual
     const pagosRows = inquilinosActivos.map(inq => {
-      const pago = pagosActualMap[inq.id]
-      const expensas = expensasPerInq[inq.id] || 0
+      const pago = pagoDeInquilino(inq.id)
+      const expensas = expensasDeInquilino(inq.id)
       const alquiler = Number(inq.precioAlquiler || 0)
       const total = pago ? pago.total : (expensas + alquiler)
       return {

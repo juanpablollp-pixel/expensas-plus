@@ -23,6 +23,16 @@ const NAV_ITEMS = [
   { id: 'historial',    label: 'Historial',  Icon: IconHistorial       },
 ]
 
+function HomeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  )
+}
+
 function GearIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -60,25 +70,34 @@ export default function App() {
       {/* ── Topbar ─────────────────────────────── */}
       <header className="topbar">
         <div className="topbar-inner">
-          <button className="topbar-brand" onClick={goHome} aria-label="Ir al inicio">
+          <div className="topbar-brand">
             <img
               src="/expensas-plus/logo-expensas.png"
               alt="ExpensasPlus"
               className="topbar-logo"
             />
-          </button>
+          </div>
 
           {active && (
             <span className="topbar-section-label">{sectionLabel}</span>
           )}
 
-          <button
-            className={`topbar-gear${active === 'configuracion' ? ' active' : ''}`}
-            onClick={() => setActive('configuracion')}
-            aria-label="Configuración"
-          >
-            <GearIcon />
-          </button>
+          <div className="topbar-actions">
+            <button
+              className={`topbar-action${!active ? ' active' : ''}`}
+              onClick={goHome}
+              aria-label="Inicio"
+            >
+              <HomeIcon />
+            </button>
+            <button
+              className={`topbar-action${active === 'configuracion' ? ' active' : ''}`}
+              onClick={() => setActive('configuracion')}
+              aria-label="Configuración"
+            >
+              <GearIcon />
+            </button>
+          </div>
         </div>
       </header>
 
