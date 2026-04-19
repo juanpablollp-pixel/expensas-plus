@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import CargarGastos    from './sections/CargarGastos'
 import GenerarExpensas from './sections/GenerarExpensas'
 import Inquilinos      from './sections/Inquilinos'
@@ -12,69 +12,35 @@ import IconGenerarExpensas from './components/icons/IconGenerarExpensas'
 import IconInquilinos      from './components/icons/IconInquilinos'
 import IconHistorial       from './components/icons/IconHistorial'
 import IconEstadoCuenta    from './components/icons/IconEstadoCuenta'
-import IconConfiguracion   from './components/icons/IconConfiguracion'
 
 import './App.css'
 
-const SECTIONS = [
-  { id: 'gastos',        label: 'Cargar Gastos',    Icon: IconCargarGastos    },
-  { id: 'expensas',      label: 'Generar Expensas', Icon: IconGenerarExpensas },
-  { id: 'inquilinos',    label: 'Inquilinos',        Icon: IconInquilinos      },
-  { id: 'estadocuenta',  label: 'Estado de Cuenta',  Icon: IconEstadoCuenta    },
-  { id: 'historial',     label: 'Historial',         Icon: IconHistorial       },
-  { id: 'configuracion', label: 'Configuración',     Icon: IconConfiguracion   },
+const NAV_ITEMS = [
+  { id: 'gastos',       label: 'Gastos',     Icon: IconCargarGastos    },
+  { id: 'expensas',     label: 'Expensas',   Icon: IconGenerarExpensas },
+  { id: 'inquilinos',   label: 'Inquilinos', Icon: IconInquilinos      },
+  { id: 'estadocuenta', label: 'Cuenta',     Icon: IconEstadoCuenta    },
+  { id: 'historial',    label: 'Historial',  Icon: IconHistorial       },
 ]
 
-function HamburgerIcon() {
+function GearIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="6"  x2="19" y2="6"/>
-      <line x1="3" y1="11" x2="19" y2="11"/>
-      <line x1="3" y1="16" x2="19" y2="16"/>
-    </svg>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="15" y1="5" x2="5"  y2="15"/>
-      <line x1="5"  y1="5" x2="15" y2="15"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
     </svg>
   )
 }
 
 export default function App() {
-  const [active,   setActive]   = useState(null)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
+  const [active, setActive] = useState(null)
 
-  useEffect(() => {
-    if (!menuOpen) return
-    function handleOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('touchstart', handleOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('touchstart', handleOutside)
-    }
-  }, [menuOpen])
+  function handleNav(id) { setActive(id) }
+  function goHome()       { setActive(null) }
 
-  function handleNav(id) {
-    setActive(id)
-    setMenuOpen(false)
-  }
-
-  function goHome() {
-    setActive(null)
-    setMenuOpen(false)
-  }
+  const sectionLabel = NAV_ITEMS.find(n => n.id === active)?.label
+    ?? (active === 'configuracion' ? 'Configuración' : null)
 
   function renderSection() {
     switch (active) {
@@ -92,9 +58,8 @@ export default function App() {
     <div className="app">
 
       {/* ── Topbar ─────────────────────────────── */}
-      <header className="topbar" ref={menuRef}>
+      <header className="topbar">
         <div className="topbar-inner">
-
           <button className="topbar-brand" onClick={goHome} aria-label="Ir al inicio">
             <img
               src="/expensas-plus/logo-expensas.png"
@@ -104,35 +69,17 @@ export default function App() {
           </button>
 
           {active && (
-            <span className="topbar-section-label">
-              {SECTIONS.find(s => s.id === active)?.label}
-            </span>
+            <span className="topbar-section-label">{sectionLabel}</span>
           )}
 
           <button
-            className={`topbar-hamburger ${menuOpen ? 'open' : ''}`}
-            onClick={() => setMenuOpen(o => !o)}
-            aria-label="Menú de navegación"
-            aria-expanded={menuOpen}
+            className={`topbar-gear${active === 'configuracion' ? ' active' : ''}`}
+            onClick={() => setActive('configuracion')}
+            aria-label="Configuración"
           >
-            {menuOpen ? <CloseIcon /> : <HamburgerIcon />}
+            <GearIcon />
           </button>
         </div>
-
-        {menuOpen && (
-          <nav className="topbar-dropdown" role="navigation">
-            {SECTIONS.map(s => (
-              <button
-                key={s.id}
-                className={`topbar-nav-item ${active === s.id ? 'active' : ''}`}
-                onClick={() => handleNav(s.id)}
-              >
-                <div className="topbar-nav-icon"><s.Icon /></div>
-                <span>{s.label}</span>
-              </button>
-            ))}
-          </nav>
-        )}
       </header>
 
       {/* ── Main content ───────────────────────── */}
@@ -141,13 +88,25 @@ export default function App() {
           <Inicio onNavigate={handleNav} />
         ) : (
           <div className="section-wrapper">
-            <button className="back-to-home" onClick={goHome}>
-              ← Menú principal
-            </button>
             {renderSection()}
           </div>
         )}
       </main>
+
+      {/* ── Bottom navigation ──────────────────── */}
+      <nav className="bottom-nav" aria-label="Navegación principal">
+        {NAV_ITEMS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            className={`bottom-nav-item${active === id ? ' active' : ''}`}
+            onClick={() => handleNav(id)}
+            aria-label={label}
+          >
+            <div className="bottom-nav-icon"><Icon /></div>
+            <span className="bottom-nav-label">{label}</span>
+          </button>
+        ))}
+      </nav>
 
     </div>
   )

@@ -32,6 +32,7 @@
   --radius:         12px;
   --radius-sm:      8px;
   --topbar-h:       56px;
+  --bottom-nav-h:   60px;
   --sidebar-w:      0px;
   --primary:        var(--accent);
   --primary-dark:   var(--accent-hover);
@@ -104,62 +105,61 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.topbar-hamburger {
-  width: 40px; height: 40px;
+/* ── Gear icon (Configuración) ──────────────── */
+.topbar-gear {
+  width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
-.topbar-hamburger:hover  { background: var(--bg-hover); border-color: var(--border-focus); }
-.topbar-hamburger.open   { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.topbar-gear:hover  { color: var(--text-secondary); background: var(--bg-hover); }
+.topbar-gear.active { color: var(--accent); background: var(--accent-soft); }
 
-/* ── Dropdown nav ────────────────────────────── */
-.topbar-dropdown {
-  border-top: 1px solid var(--border-color);
+/* ── Bottom navigation ──────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 200;
   background: var(--bg-secondary);
-  padding: 6px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+.bottom-nav-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  animation: dropdownIn 0.18s ease;
-}
-@keyframes dropdownIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.topbar-nav-item {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 11px 12px;
+  justify-content: center;
+  gap: 3px;
+  height: var(--bottom-nav-h);
+  background: none;
   border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: inherit;
+  color: var(--text-muted);
   cursor: pointer;
-  text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
-  min-height: 44px;
+  transition: color 0.18s ease;
+  padding: 8px 4px;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
-.topbar-nav-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
-.topbar-nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.topbar-nav-icon {
-  width: 32px; height: 32px;
-  background: var(--accent-soft);
-  border-radius: 8px;
+.bottom-nav-item:active { opacity: 0.65; }
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-icon {
+  width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  color: var(--accent);
+}
+.bottom-nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 /* ── Main content ───────────────────────────── */
@@ -169,7 +169,7 @@ body {
   min-height: calc(100vh - var(--topbar-h) - env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
 }
 
 .section-wrapper {
@@ -178,21 +178,6 @@ body {
   flex-direction: column;
 }
 
-.back-to-home {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 13px;
-  padding: 10px 14px 0;
-  cursor: pointer;
-  font-weight: 500;
-  font-family: inherit;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  transition: opacity 0.2s ease;
-}
-.back-to-home:hover { opacity: 0.75; }
 
 /* ── Section container ──────────────────────── */
 .section-container {
@@ -1122,3 +1107,183 @@ button { cursor: pointer; font-family: inherit; }
 .dash-card-value--md    { font-size: 16px; font-weight: var(--fw-bold); }
 .dash-card-value--white { color: #fff; }
 .dash-card-sub { display: none; }
+
+/* ── Dashboard — Cards de sección expandidas ─ */
+.dash-section-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.dash-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dash-section-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+}
+
+.dash-section-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dash-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 14px;
+  text-align: center;
+}
+
+/* Fila de inquilino */
+.dash-inq-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+.dash-inq-row:last-child { border-bottom: none; }
+
+.dash-inq-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
+}
+
+.dash-inq-depto {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.dash-inq-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pill de actualización */
+.dash-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dash-pill--warning { background: var(--warning-soft); color: var(--warning); }
+.dash-pill--danger  { background: var(--danger-soft);  color: var(--danger);  }
+
+/* Grid de montos 2x2 */
+.dash-inq-amounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+
+.dash-amount-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.dash-amount-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dash-amount-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.dash-amount-value--total {
+  font-size: 13px;
+  font-weight: var(--fw-black);
+  color: var(--text-primary);
+}
+
+/* Fila de servicio */
+.dash-svc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+.dash-svc-row:last-child { border-bottom: none; }
+.dash-svc-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dash-svc-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* Fila de pago */
+.dash-pago-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+.dash-pago-row:last-child { border-bottom: none; }
+.dash-pago-nombre {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dash-pago-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.dash-pago-estado {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dash-pago-estado--pagado   { background: var(--success-soft); color: var(--success); }
+.dash-pago-estado--impago   { background: var(--danger-soft);  color: var(--danger);  }
+.dash-pago-estado--pendiente { background: var(--warning-soft); color: var(--warning); }
