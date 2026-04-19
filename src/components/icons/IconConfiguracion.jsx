@@ -1,7 +1,7 @@
 export default function IconConfiguracion() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-      stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3"/>
       <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0
         00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0
