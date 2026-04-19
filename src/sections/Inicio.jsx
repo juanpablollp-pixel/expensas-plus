@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { db } from '../db'
 import { periodoLabel, formatCurrency } from '../utils/helpers'
 
@@ -81,14 +81,34 @@ function IconCheck() {
   )
 }
 
+function ChevronLeft() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  )
+}
+
+function ChevronRight() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function Inicio({ onNavigate }) {
-  const [stats, setStats] = useState(null)
+  const [rawData, setRawData]     = useState(null)   // datos crudos de DB
+  const [periodos, setPeriodos]   = useState([])     // períodos disponibles, desc
+  const [periodoIdx, setPeriodoIdx] = useState(0)    // 0 = más reciente
 
-  useEffect(() => { loadDashboard() }, [])
+  useEffect(() => { loadRawData() }, [])
 
-  async function loadDashboard() {
+  async function loadRawData() {
     const [todosInquilinos, todosGastos, todosServicios, todosPagos, configTEM] = await Promise.all([
       db.inquilinos.toArray(),
       db.gastos.toArray(),
@@ -97,30 +117,42 @@ export default function Inicio({ onNavigate }) {
       db.config.get('tem_mora'),
     ])
 
-    const tem = configTEM?.valor ?? 0
+    const periodosDisponibles = [
+      ...new Set(todosGastos.map(g => g.periodo).filter(Boolean)),
+    ].sort((a, b) => b.localeCompare(a))
+
+    setPeriodos(periodosDisponibles)
+    setPeriodoIdx(0)
+    setRawData({
+      todosInquilinos,
+      todosGastos,
+      todosServicios,
+      todosPagos,
+      tem: configTEM?.valor ?? 0,
+    })
+  }
+
+  // Recalcula stats cada vez que cambia el período seleccionado
+  const stats = useMemo(() => {
+    if (!rawData || periodos.length === 0) return null
+    const { todosInquilinos, todosGastos, todosServicios, todosPagos, tem } = rawData
+    const periodo = periodos[periodoIdx] ?? null
+
     const inquilinosActivos = todosInquilinos.filter(i => i.estadoContrato === 'Activo')
     const countActivos = inquilinosActivos.length || 1
 
-    // Período actual (el más reciente con gastos)
-    const gastoPeriodoKeys = [...new Set(todosGastos.map(g => g.periodo).filter(Boolean))]
-    gastoPeriodoKeys.sort((a, b) => b.localeCompare(a))
-    const periodoActual = gastoPeriodoKeys[0] ?? null
-
-    const gastosDelPeriodo = periodoActual
-      ? todosGastos.filter(g => g.periodo === periodoActual)
+    const gastosDelPeriodo = periodo
+      ? todosGastos.filter(g => g.periodo === periodo)
       : []
     const totalGastosPeriodo = gastosDelPeriodo.reduce((s, g) => s + Number(g.importe || 0), 0)
 
-    // Expensas por inquilino en período actual
     const totalGenerales = gastosDelPeriodo
       .filter(g => g.tipo === 'general')
       .reduce((s, g) => s + Number(g.importe || 0), 0)
 
-    // Helper: busca el pago de un inquilino para el período actual
-    // Usa comparación explícita con Number() para evitar problemas de tipos
     const pagoDeInquilino = (inqId) =>
       todosPagos.find(
-        p => Number(p.inquilinoId) === Number(inqId) && p.periodo === periodoActual
+        p => Number(p.inquilinoId) === Number(inqId) && p.periodo === periodo
       ) ?? null
 
     const expensasDeInquilino = (inqId) => {
@@ -130,20 +162,14 @@ export default function Inicio({ onNavigate }) {
       return (totalGenerales / countActivos) + particulares
     }
 
-    // Card: Inquilinos — detalle por inquilino activo
     const inquilinoRows = inquilinosActivos.map(inq => {
       const expensas = expensasDeInquilino(inq.id)
       const alquiler = Number(inq.precioAlquiler || 0)
       const pago = pagoDeInquilino(inq.id)
       const mora = pago
         ? (pago.importeMora || 0)
-        : calcMoraImporte(periodoActual, alquiler, tem)
-      const total = expensas + alquiler + mora
-
+        : calcMoraImporte(periodo, alquiler, tem)
       const dias = diasHasta(inq.fechaProximaActualizacion)
-      const showPill = dias !== null && dias <= 30
-      const pillOverdue = dias !== null && dias <= 0
-
       return {
         id: inq.id,
         nombre: `${inq.nombre} ${inq.apellido}`,
@@ -151,14 +177,13 @@ export default function Inicio({ onNavigate }) {
         expensas,
         alquiler,
         mora,
-        total,
-        showPill,
-        pillOverdue,
+        total: expensas + alquiler + mora,
+        showPill: dias !== null && dias <= 30,
+        pillOverdue: dias !== null && dias <= 0,
         diasActualizacion: dias,
       }
     })
 
-    // Card: Servicios — total por servicio en período actual
     const servicioRows = todosServicios.map(s => ({
       id: s.id,
       nombre: s.nombre,
@@ -167,32 +192,30 @@ export default function Inicio({ onNavigate }) {
         .reduce((sum, g) => sum + Number(g.importe || 0), 0),
     })).filter(s => s.total > 0)
 
-    // Card: Pagos — estado por inquilino activo en período actual
     const pagosRows = inquilinosActivos.map(inq => {
       const pago = pagoDeInquilino(inq.id)
       const expensas = expensasDeInquilino(inq.id)
       const alquiler = Number(inq.precioAlquiler || 0)
-      const total = pago ? pago.total : (expensas + alquiler)
       return {
         id: inq.id,
         nombre: `${inq.apellido}, ${inq.nombre}`,
         departamento: inq.departamento,
-        total,
-        estado: periodoEstado(periodoActual, pago),
+        total: pago ? pago.total : (expensas + alquiler),
+        estado: periodoEstado(periodo, pago),
       }
     })
 
-    setStats({
-      periodoActual,
-      periodoLabelStr: periodoActual ? periodoLabel(periodoActual) : 'Sin datos',
+    return {
+      periodo,
+      periodoLabelStr: periodo ? periodoLabel(periodo) : 'Sin datos',
       totalGastosPeriodo,
       inquilinoRows,
       servicioRows,
       pagosRows,
-    })
-  }
+    }
+  }, [rawData, periodos, periodoIdx])
 
-  if (!stats) {
+  if (!rawData || !stats) {
     return (
       <div className="inicio-loading">
         <div className="inicio-spinner" />
@@ -201,6 +224,8 @@ export default function Inicio({ onNavigate }) {
   }
 
   const { periodoLabelStr, totalGastosPeriodo, inquilinoRows, servicioRows, pagosRows } = stats
+  const canPrev = periodoIdx < periodos.length - 1   // períodos más antiguos → idx mayor
+  const canNext = periodoIdx > 0                      // períodos más recientes → idx menor
 
   return (
     <div className="inicio-screen">
@@ -212,12 +237,30 @@ export default function Inicio({ onNavigate }) {
 
       <div className="dashboard-grid">
 
-        {/* 1 — Período actual */}
+        {/* 1 — Período (seleccionable) */}
         <div className="dash-card">
           <div className="dash-card-icon dash-icon-success"><IconCalendar /></div>
           <div className="dash-card-body">
-            <span className="dash-card-label">Período actual</span>
-            <span className="dash-card-value dash-card-value--md">{periodoLabelStr}</span>
+            <span className="dash-card-label">Período</span>
+            <div className="dash-period-nav">
+              <button
+                className="dash-period-btn"
+                onClick={() => setPeriodoIdx(i => i + 1)}
+                disabled={!canPrev}
+                aria-label="Período anterior"
+              >
+                <ChevronLeft />
+              </button>
+              <span className="dash-period-label">{periodoLabelStr}</span>
+              <button
+                className="dash-period-btn"
+                onClick={() => setPeriodoIdx(i => i - 1)}
+                disabled={!canNext}
+                aria-label="Período siguiente"
+              >
+                <ChevronRight />
+              </button>
+            </div>
           </div>
         </div>
 
