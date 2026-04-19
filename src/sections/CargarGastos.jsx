@@ -4,6 +4,7 @@ import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { periodoLabel } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
+import DatePicker from '../components/DatePicker'
 
 const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '' }
 
@@ -318,11 +319,11 @@ export default function CargarGastos() {
           <div className="form-row">
             <div className="form-group">
               <label>Fecha de Emisión</label>
-              <input type="date" value={form.fechaEmision} onChange={e => setForm(f => ({ ...f, fechaEmision: e.target.value }))} />
+              <DatePicker value={form.fechaEmision} onChange={v => setForm(f => ({ ...f, fechaEmision: v }))} />
             </div>
             <div className="form-group">
               <label>Fecha de Vencimiento</label>
-              <input type="date" value={form.fechaVencimiento} onChange={e => setForm(f => ({ ...f, fechaVencimiento: e.target.value }))} required />
+              <DatePicker value={form.fechaVencimiento} onChange={v => setForm(f => ({ ...f, fechaVencimiento: v }))} />
             </div>
           </div>
 
