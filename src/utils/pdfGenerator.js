@@ -26,6 +26,9 @@ const S = {
   warningFill: [254, 243, 199],
 }
 
+const toTitleCase = str =>
+  str ? str.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : str
+
 async function resolveFooter() {
   const saved = await getAdminConfig()
   if (saved && saved.administrador) return saved
@@ -318,7 +321,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
   currentY = addInquilinoBar(doc, pageWidth, currentY, [
     { label: 'Inquilino',        value: `${inquilino.nombre} ${inquilino.apellido}`, bold: true },
     { label: 'DNI / CUIT',       value: inquilino.dni },
-    { label: 'Domicilio Fiscal', value: inquilino.domicilio || '-' },
+    { label: 'Domicilio Fiscal', value: (inquilino.domicilio || '').replace(/[\s,]+$/, '') || '-' },
     { label: 'Unidad',           value: inquilino.departamento, bold: true },
   ])
 
@@ -334,7 +337,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
       head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Total', 'Su Parte']],
       body: gastosGenerales.map(g => [
         g.servicio,
-        g.empresa,
+        toTitleCase(g.empresa),
         g.numeroFactura || '-',
         g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
         formatCurrency(g.importe),
@@ -342,8 +345,8 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
       ]),
       columnStyles: {
         0: { cellWidth: 32, fontStyle: 'bold', textColor: S.s900 },
-        1: { cellWidth: 36 },
-        2: { cellWidth: 26 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 32 },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 28, halign: 'right' },
         5: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
@@ -363,15 +366,15 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
       head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Importe']],
       body: gastosParticulares.map(g => [
         g.servicio,
-        g.empresa,
+        toTitleCase(g.empresa),
         g.numeroFactura || '-',
         g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
         formatCurrency(g.importe),
       ]),
       columnStyles: {
         0: { cellWidth: 32, fontStyle: 'bold', textColor: S.s900 },
-        1: { cellWidth: 62 },
-        2: { cellWidth: 26 },
+        1: { cellWidth: 56 },
+        2: { cellWidth: 32 },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 32, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
       },
@@ -428,7 +431,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
       body: generales.flatMap(g =>
         inquilinos.map(inq => [
           serviciosMap[g.servicioId] || g.servicioId,
-          g.empresa,
+          toTitleCase(g.empresa),
           g.numeroFactura || '-',
           g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
           formatCurrency(g.importe),
@@ -439,10 +442,10 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
       columnStyles: {
         0: { cellWidth: 24, fontStyle: 'bold', textColor: S.s900 },
         1: { cellWidth: 28 },
-        2: { cellWidth: 22 },
+        2: { cellWidth: 30 },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 24, halign: 'right' },
-        5: { cellWidth: 38 },
+        5: { cellWidth: 30 },
         6: { cellWidth: 24, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
       },
       margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
@@ -464,16 +467,19 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
         return [
           inq ? `${inq.apellido}, ${inq.nombre}` : 'Desconocido',
           serviciosMap[g.servicioId] || g.servicioId,
-          g.empresa,
+          toTitleCase(g.empresa),
           g.numeroFactura || '-',
           g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
           formatCurrency(g.importe),
         ]
       }),
       columnStyles: {
-        0: { cellWidth: 38 },
-        1: { fontStyle: 'bold', textColor: S.s900 },
-        5: { halign: 'right', fontStyle: 'bold', textColor: S.s900 },
+        0: { cellWidth: 36 },
+        1: { cellWidth: 28, fontStyle: 'bold', textColor: S.s900 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 32 },
+        4: { cellWidth: 24, halign: 'center' },
+        5: { cellWidth: 36, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
       },
       margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
