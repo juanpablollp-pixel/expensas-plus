@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import { generateInquilinoPDF } from '../utils/pdfGenerator'
 import { periodoLabel, formatCurrency } from '../utils/helpers'
+import MonthPicker from '../components/MonthPicker'
 
 export default function GenerarExpensas() {
   const [inquilinos, setInquilinos] = useState([])
@@ -61,7 +62,7 @@ export default function GenerarExpensas() {
 
       <div className="periodo-selector-bar">
         <label>Período:</label>
-        <input type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setSelected(null); setPreview(null) }} />
+        <MonthPicker value={periodo} onChange={v => { setPeriodo(v); setSelected(null); setPreview(null) }} />
       </div>
 
       <div className="generar-layout">

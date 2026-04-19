@@ -3,6 +3,7 @@ import { db } from '../db'
 import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { periodoLabel } from '../utils/helpers'
+import MonthPicker from '../components/MonthPicker'
 
 const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '' }
 
@@ -45,7 +46,7 @@ export default function CargarGastos() {
         <div className="form-card centered">
           <div className="form-group">
             <label>Seleccioná el Período</label>
-            <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)} />
+            <MonthPicker value={periodo} onChange={setPeriodo} />
           </div>
           <button
             className="btn-primary full-width"

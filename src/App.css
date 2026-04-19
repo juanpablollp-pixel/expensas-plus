@@ -1016,6 +1016,27 @@ button { cursor: pointer; font-family: inherit; }
 .backup-card-body p  { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5; }
 .import-error { margin-top: 10px; font-size: 13px; color: var(--danger); font-weight: 600; }
 
+/* ── MonthPicker ────────────────────────────── */
+.month-picker {
+  display: flex;
+  gap: 8px;
+}
+.month-picker-select {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-primary);
+  min-height: 44px;
+  outline: none;
+  transition: border-color 0.2s ease;
+  appearance: auto;
+}
+.month-picker-select:focus { border-color: var(--border-focus); }
+
 /* ── Dashboard ──────────────────────────────── */
 .inicio-loading {
   flex: 1; display: flex; align-items: center;
