@@ -70,6 +70,7 @@ body {
   z-index: 200;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 .topbar-inner {
   height: var(--topbar-h);
@@ -163,9 +164,9 @@ body {
 
 /* ── Main content ───────────────────────────── */
 .main-content {
-  margin-top: var(--topbar-h);
+  margin-top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
   flex: 1;
-  min-height: calc(100vh - var(--topbar-h));
+  min-height: calc(100vh - var(--topbar-h) - env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 0px);
