@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
+import DatePicker from '../components/DatePicker'
 
 const EMPTY_FORM = {
   nombre: '', apellido: '', dni: '', domicilio: '',
@@ -75,17 +76,27 @@ export default function Inquilinos() {
     loadInquilinos()
   }
 
-  const field = (label, key, type = 'text', opts = {}) => (
-    <div className="form-group">
-      <label>{label}</label>
-      <input
-        type={type}
-        value={form[key] || ''}
-        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-        required={opts.required}
-      />
-    </div>
-  )
+  const field = (label, key, type = 'text', opts = {}) => {
+    if (type === 'date') {
+      return (
+        <div className="form-group">
+          <label>{label}</label>
+          <DatePicker value={form[key] || ''} onChange={v => setForm(f => ({ ...f, [key]: v }))} />
+        </div>
+      )
+    }
+    return (
+      <div className="form-group">
+        <label>{label}</label>
+        <input
+          type={type}
+          value={form[key] || ''}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          required={opts.required}
+        />
+      </div>
+    )
+  }
 
   if (showForm) {
     return (
