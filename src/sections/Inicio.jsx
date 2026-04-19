@@ -56,11 +56,8 @@ export default function Inicio({ onNavigate }) {
     <div className="inicio-screen">
 
       <div className="inicio-header">
-        <img src="/expensas-plus/logo-expensas.png" alt="ExpensasPlus" className="inicio-logo" />
-        <div>
-          <h1 className="inicio-title">Bienvenido</h1>
-          <p className="inicio-subtitle">Resumen del edificio</p>
-        </div>
+        <h1 className="inicio-title">Bienvenido</h1>
+        <p className="inicio-subtitle">Resumen del edificio</p>
       </div>
 
       <div className="dashboard-grid">
@@ -148,25 +145,6 @@ export default function Inicio({ onNavigate }) {
             <span className="dash-card-label">Servicios</span>
             <span className="dash-card-value">{stats.serviciosCount}</span>
             <span className="dash-card-sub">registrados</span>
-          </div>
-        </div>
-
-        {/* Accesos rápidos */}
-        <div className="dash-card dash-card--quicklinks">
-          <span className="dash-card-label">Accesos rápidos</span>
-          <div className="dash-quicklinks">
-            <button className="dash-quicklink-btn" onClick={() => onNavigate('gastos')}>
-              <span className="dash-ql-icon">📋</span>
-              <span>Cargar Gastos</span>
-            </button>
-            <button className="dash-quicklink-btn" onClick={() => onNavigate('expensas')}>
-              <span className="dash-ql-icon">📄</span>
-              <span>Generar Expensas</span>
-            </button>
-            <button className="dash-quicklink-btn" onClick={() => onNavigate('estadocuenta')}>
-              <span className="dash-ql-icon">📊</span>
-              <span>Estado de Cuenta</span>
-            </button>
           </div>
         </div>
 
