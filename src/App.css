@@ -1320,3 +1320,42 @@ button { cursor: pointer; font-family: inherit; }
 .dash-pago-estado--pagado   { background: var(--success-soft); color: var(--success); }
 .dash-pago-estado--impago   { background: var(--danger-soft);  color: var(--danger);  }
 .dash-pago-estado--pendiente { background: var(--warning-soft); color: var(--warning); }
+
+/* ── Selector de período en card ─────────────── */
+.dash-period-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.dash-period-label {
+  font-size: 15px;
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: center;
+}
+
+.dash-period-btn {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+.dash-period-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.dash-period-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
