@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -17,50 +17,77 @@ function buildYears() {
   return years
 }
 
-export default function DatePicker({ value, onChange }) {
-  const parts = value ? value.split('-') : ['', '', '']
-  const selectedYear  = parts[0] ? parseInt(parts[0]) : ''
-  const selectedMonth = parts[1] ? parseInt(parts[1]) : ''
-  const selectedDay   = parts[2] ? parseInt(parts[2]) : ''
+function parseValue(v) {
+  if (!v) return { year: '', month: '', day: '' }
+  const parts = v.split('-')
+  return {
+    year:  parts[0] ? parseInt(parts[0]) : '',
+    month: parts[1] ? parseInt(parts[1]) : '',
+    day:   parts[2] ? parseInt(parts[2]) : '',
+  }
+}
 
-  const maxDay = daysInMonth(selectedMonth || 1, selectedYear || new Date().getFullYear())
+export default function DatePicker({ value, onChange }) {
+  const [fields, setFields] = useState(() => parseValue(value))
+  const lastEmitted = useRef(value ?? '')
+
+  // Sync from parent only when the parent changes value externally
+  // (e.g., form reset or loading an existing record), not in response
+  // to our own onChange calls.
+  useEffect(() => {
+    if (value !== lastEmitted.current) {
+      setFields(parseValue(value))
+      lastEmitted.current = value ?? ''
+    }
+  }, [value])
+
+  const { year, month, day } = fields
+  const maxDay = daysInMonth(month || 1, year || new Date().getFullYear())
 
   function emit(y, m, d) {
-    if (!y || !m || !d) { onChange(''); return }
-    onChange(
-      `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-    )
+    const result = (!y || !m || !d)
+      ? ''
+      : `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    lastEmitted.current = result
+    onChange(result)
   }
 
   function handleDay(e) {
-    emit(selectedYear, selectedMonth, e.target.value)
+    const d = e.target.value ? parseInt(e.target.value) : ''
+    setFields(f => ({ ...f, day: d }))
+    emit(year, month, d)
   }
+
   function handleMonth(e) {
-    const m = e.target.value
-    const clampedDay = selectedDay && m
-      ? Math.min(selectedDay, daysInMonth(parseInt(m), selectedYear || new Date().getFullYear()))
-      : selectedDay
-    emit(selectedYear, m, clampedDay)
+    const m = e.target.value ? parseInt(e.target.value) : ''
+    const clampedDay = day && m
+      ? Math.min(day, daysInMonth(m, year || new Date().getFullYear()))
+      : day
+    setFields(f => ({ ...f, month: m, day: clampedDay }))
+    emit(year, m, clampedDay)
   }
+
   function handleYear(e) {
-    emit(e.target.value, selectedMonth, selectedDay)
+    const y = e.target.value ? parseInt(e.target.value) : ''
+    setFields(f => ({ ...f, year: y }))
+    emit(y, month, day)
   }
 
   return (
     <div className="month-picker">
-      <select className="month-picker-select" value={selectedDay} onChange={handleDay} style={{ flex: '0 0 auto', width: '72px' }}>
+      <select className="month-picker-select" value={day} onChange={handleDay} style={{ flex: '0 0 auto', width: '72px' }}>
         <option value="">Día</option>
         {Array.from({ length: maxDay }, (_, i) => i + 1).map(d => (
           <option key={d} value={d}>{d}</option>
         ))}
       </select>
-      <select className="month-picker-select" value={selectedMonth} onChange={handleMonth}>
+      <select className="month-picker-select" value={month} onChange={handleMonth}>
         <option value="">Mes</option>
         {MESES.map((label, i) => (
           <option key={i + 1} value={i + 1}>{label}</option>
         ))}
       </select>
-      <select className="month-picker-select" value={selectedYear} onChange={handleYear} style={{ flex: '0 0 auto', width: '86px' }}>
+      <select className="month-picker-select" value={year} onChange={handleYear} style={{ flex: '0 0 auto', width: '86px' }}>
         <option value="">Año</option>
         {buildYears().map(y => (
           <option key={y} value={y}>{y}</option>
