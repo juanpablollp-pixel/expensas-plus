@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -29,17 +29,17 @@ function parseValue(v) {
 
 export default function DatePicker({ value, onChange }) {
   const [fields, setFields] = useState(() => parseValue(value))
-  const lastEmitted = useRef(value ?? '')
+  const [lastEmitted, setLastEmitted] = useState(value ?? '')
 
-  // Sync from parent only when the parent changes value externally
-  // (e.g., form reset or loading an existing record), not in response
-  // to our own onChange calls.
-  useEffect(() => {
-    if (value !== lastEmitted.current) {
+  // Sincroniza con el prop sólo si el cambio vino de afuera (no de un emit propio)
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    if (value !== lastEmitted) {
       setFields(parseValue(value))
-      lastEmitted.current = value ?? ''
+      setLastEmitted(value ?? '')
     }
-  }, [value])
+  }
 
   const { year, month, day } = fields
   const maxDay = daysInMonth(month || 1, year || new Date().getFullYear())
@@ -48,7 +48,7 @@ export default function DatePicker({ value, onChange }) {
     const result = (!y || !m || !d)
       ? ''
       : `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    lastEmitted.current = result
+    setLastEmitted(result)
     onChange(result)
   }
 

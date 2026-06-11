@@ -16,7 +16,8 @@ export default function GenerarExpensas() {
   const [generating, setGenerating] = useState(false)
 
   useEffect(() => {
-    db.inquilinos.orderBy('apellido').toArray().then(setInquilinos)
+    // Sólo inquilinos activos: a los inactivos/finalizados no se les liquida
+    db.inquilinos.orderBy('apellido').filter(i => i.estadoContrato === 'Activo').toArray().then(setInquilinos)
     db.servicios.toArray().then(svcs => {
       const map = {}
       svcs.forEach(s => { map[s.id] = s.nombre })

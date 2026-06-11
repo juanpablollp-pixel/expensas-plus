@@ -12,7 +12,7 @@ function buildYears() {
   return years
 }
 
-export default function MonthPicker({ value, onChange, placeholder = 'Seleccioná…' }) {
+export default function MonthPicker({ value, onChange }) {
   const [yearStr, monthStr] = value ? value.split('-') : ['', '']
   const selectedYear  = yearStr  ? parseInt(yearStr)  : ''
   const selectedMonth = monthStr ? parseInt(monthStr) : ''

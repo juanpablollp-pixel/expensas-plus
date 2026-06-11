@@ -26,6 +26,16 @@ db.version(3).stores({
   pagos: '++id, inquilinoId, periodo, fechaPago'
 })
 
+// v4: se eliminan índices que nunca se consultan (menor costo de escritura)
+db.version(4).stores({
+  inquilinos: '++id, apellido',
+  servicios: '++id',
+  gastos: '++id, periodo, servicioId, inquilinoId',
+  periodos: '++id, periodo',
+  config: 'clave',
+  pagos: '++id, inquilinoId, periodo'
+})
+
 // Helper para leer los datos del administrador guardados en config
 export async function getAdminConfig() {
   const row = await db.config.get('admin')

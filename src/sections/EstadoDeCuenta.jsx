@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { db } from '../db'
-import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
 import { generateEstadoCuentaPDF } from '../utils/pdfGenerator'
 import { periodoLabel, formatCurrency } from '../utils/helpers'
@@ -9,7 +8,11 @@ import { periodoLabel, formatCurrency } from '../utils/helpers'
 
 // Calcula el estado y mora de un período para un inquilino dado
 function calcEstado(periodo, precioAlquiler, tem, pagoRegistrado) {
-  if (pagoRegistrado) return { estado: 'pagado', mora: pagoRegistrado.importeMora, tiempoMora: pagoRegistrado.tiempoMora }
+  if (pagoRegistrado) {
+    const totalPagado = pagoRegistrado.totalPagado ?? pagoRegistrado.total
+    const estado = totalPagado < pagoRegistrado.total ? 'parcial' : 'pagado'
+    return { estado, mora: pagoRegistrado.importeMora ?? 0, tiempoMora: pagoRegistrado.tiempoMora }
+  }
 
   // Las expensas se liquidan por adelantado: el mes de vencimiento es el
   // siguiente al período (ej: período Marzo → vence en Abril)
@@ -60,8 +63,35 @@ export default function EstadoDeCuenta() {
   const [tem, setTem] = useState(0)
   const [tick, setTick] = useState(0)                  // fuerza re-render cada minuto
   const [confirmPago, setConfirmPago] = useState(null)  // periodo a marcar pagado
+  const [montoPago, setMontoPago] = useState('')
+  const [fechaPagoInput, setFechaPagoInput] = useState('')
   const [popup, setPopup] = useState(null)
   const [generando, setGenerando] = useState(false)
+
+  // Pre-fill inputs when the payment modal is opened
+  useEffect(() => {
+    if (confirmPago && selected) {
+      const expensas = expensasPeriodo(confirmPago)
+      const alquiler = alquilerDe(confirmPago)
+      const pago = pagosMap[confirmPago]
+
+      const expensasHistorico = pago ? (pago.importeExpensas ?? expensas) : expensas
+      const alquilerHistorico = pago ? (pago.importeAlquiler ?? alquiler) : alquiler
+      const { mora } = calcEstado(confirmPago, alquilerHistorico, tem, pago)
+      const total = pago ? (pago.total ?? (expensasHistorico + alquilerHistorico + mora)) : (expensasHistorico + alquilerHistorico + mora)
+      const totalPagado = pago ? (pago.totalPagado ?? pago.total) : 0
+      const saldo = total - totalPagado
+      
+      setMontoPago(String(saldo))
+      
+      const hoy = new Date()
+      const yyyy = hoy.getFullYear()
+      const mm = String(hoy.getMonth() + 1).padStart(2, '0')
+      const dd = String(hoy.getDate()).padStart(2, '0')
+      setFechaPagoInput(`${yyyy}-${mm}-${dd}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmPago])
 
   // Ticker cada 60 segundos para actualizar mora en tiempo real
   useEffect(() => {
@@ -88,11 +118,13 @@ export default function EstadoDeCuenta() {
       .map(g => g.periodo)
     )].sort().reverse()
 
-    // Períodos únicos: los de la DB de períodos + los que tienen gastos
+    // Períodos únicos: los de la DB de períodos + los que tienen gastos.
+    // Se excluyen períodos anteriores al inicio del contrato del inquilino.
+    const desde = inq.fechaInicioContrato ? inq.fechaInicioContrato.slice(0, 7) : null
     const todosPeriodosStr = [...new Set([
       ...todosPeriodos.map(p => p.periodo),
       ...periodosConGastos
-    ])].sort().reverse()
+    ])].filter(p => !desde || p >= desde).sort().reverse()
 
     setPeriodos(todosPeriodosStr)
     setGastos(todosGastos)
@@ -108,6 +140,11 @@ export default function EstadoDeCuenta() {
     setScreen('detalle')
   }
 
+  // Alquiler vigente para un período (precio específico o base)
+  function alquilerDe(periodo) {
+    return selected?.preciosAlquiler?.[periodo] ?? Number(selected?.precioAlquiler || 0)
+  }
+
   // Calcula expensas de un período para el inquilino
   function expensasPeriodo(periodo) {
     const totalInqs = inquilinos.filter(i => i.estadoContrato === 'Activo').length || 1
@@ -120,40 +157,60 @@ export default function EstadoDeCuenta() {
     return generales + particulares
   }
 
-  // Marcar período como pagado
+  // Registrar pago (total o parcial) del período
   async function handleMarcarPagado(periodo) {
-    const expensas = expensasPeriodo(periodo)
-    const alquiler = Number(selected.precioAlquiler || 0)
-    const { mora, tiempoMora } = calcEstado(periodo, alquiler, tem, null)
-    const fechaPago = new Date().toISOString()
+    const monto = parseFloat(montoPago)
+    if (isNaN(monto) || monto <= 0) {
+      setPopup('Ingresá un monto válido.')
+      return
+    }
+    const fechaPago = fechaPagoInput
+      ? new Date(fechaPagoInput + 'T' + new Date().toTimeString().slice(0, 8)).toISOString()
+      : new Date().toISOString()
 
-    await db.pagos.add({
-      inquilinoId: selected.id,
-      periodo,
-      fechaPago,
-      importeExpensas: expensas,
-      importeAlquiler: alquiler,
-      tiempoMora: tiempoMora || '—',
-      importeMora: mora,
-      total: expensas + alquiler + mora
-    })
+    const pagoPrevio = pagosMap[periodo]
+    if (pagoPrevio) {
+      // Completa (o suma a) un pago parcial existente
+      const pagadoPrevio = pagoPrevio.totalPagado ?? pagoPrevio.total
+      await db.pagos.update(pagoPrevio.id, { totalPagado: pagadoPrevio + monto, fechaPago })
+    } else {
+      const expensas = expensasPeriodo(periodo)
+      const alquiler = alquilerDe(periodo)
+      const { mora, tiempoMora } = calcEstado(periodo, alquiler, tem, null)
+      await db.pagos.add({
+        inquilinoId: selected.id,
+        periodo,
+        fechaPago,
+        importeExpensas: expensas,
+        importeAlquiler: alquiler,
+        tiempoMora: tiempoMora || '—',
+        importeMora: mora,
+        total: expensas + alquiler + mora,
+        totalPagado: monto
+      })
+    }
 
     await loadDetalle(selected)
     setConfirmPago(null)
     setPopup('¡Pago registrado!')
   }
 
+  // Datos de una fila de período: usa los importes históricos del pago si existe
+  function filaPeriodo(p) {
+    const pago = pagosMap[p]
+    const expensas = pago ? (pago.importeExpensas ?? expensasPeriodo(p)) : expensasPeriodo(p)
+    const alquiler = pago ? (pago.importeAlquiler ?? alquilerDe(p)) : alquilerDe(p)
+    const { estado, mora, tiempoMora } = calcEstado(p, alquiler, tem, pago)
+    const total = pago ? (pago.total ?? (expensas + alquiler + mora)) : (expensas + alquiler + mora)
+    const totalPagado = pago ? (pago.totalPagado ?? pago.total) : 0
+    return { periodo: p, expensas, alquiler, mora, tiempoMora, estado, total, totalPagado, saldo: total - totalPagado, fechaPago: pago?.fechaPago }
+  }
+
   async function handleExportPDF() {
     if (!selected) return
     setGenerando(true)
     try {
-      const filas = periodos.map(p => {
-        const expensas = expensasPeriodo(p)
-        const alquiler = Number(selected.precioAlquiler || 0)
-        const pago = pagosMap[p]
-        const { estado, mora, tiempoMora } = calcEstado(p, alquiler, tem, pago)
-        return { periodo: p, expensas, alquiler, mora, tiempoMora, estado, total: expensas + alquiler + mora, fechaPago: pago?.fechaPago }
-      })
+      const filas = periodos.map(filaPeriodo)
       await generateEstadoCuentaPDF(selected, filas)
     } finally {
       setGenerando(false)
@@ -242,11 +299,8 @@ export default function EstadoDeCuenta() {
             </thead>
             <tbody>
               {periodos.map(p => {
-                const expensas = expensasPeriodo(p)
-                const alquiler = Number(selected?.precioAlquiler || 0)
                 const pago = pagosMap[p]
-                const { estado, mora, tiempoMora } = calcEstado(p, alquiler, tem, pago)
-                const total = expensas + alquiler + mora
+                const { expensas, alquiler, mora, tiempoMora, estado, total, saldo } = filaPeriodo(p)
                 void tick // lee tick para re-render automático
 
                 return (
@@ -264,17 +318,22 @@ export default function EstadoDeCuenta() {
                         <span className="ec-mora-pagada">{formatCurrency(mora)}</span>
                       ) : '—'}
                     </td>
-                    <td><strong>{formatCurrency(total)}</strong></td>
+                    <td>
+                      <strong>{formatCurrency(total)}</strong>
+                      {estado === 'parcial' && (
+                        <span className="ec-mora-tiempo" style={{ display: 'block' }}>Resta {formatCurrency(saldo)}</span>
+                      )}
+                    </td>
                     <td>
                       <span className={`estado-badge ${
                         estado === 'pagado'   ? 'estado-pagado'   :
                         estado === 'impago'   ? 'estado-impago'   : 'estado-pendiente'
                       }`}>
-                        {estado === 'pagado' ? 'Pagado' : estado === 'impago' ? 'Impago' : 'Pendiente'}
+                        {estado === 'pagado' ? 'Pagado' : estado === 'parcial' ? 'Parcial' : estado === 'impago' ? 'Impago' : 'Pendiente'}
                       </span>
                     </td>
                     <td>
-                      {(estado === 'pendiente' || estado === 'impago') && (
+                      {(estado === 'pendiente' || estado === 'impago' || estado === 'parcial') && (
                         <button className="btn-primary btn-sm" onClick={() => setConfirmPago(p)}>
                           Marcar Pagado
                         </button>
@@ -301,13 +360,23 @@ export default function EstadoDeCuenta() {
       </div>
 
       {confirmPago && (
-        <ConfirmDialog
-          message={`¿Registrar el pago de ${periodoLabel(confirmPago)}? Se guardará la fecha, hora y mora acumulada hasta este momento.`}
-          cancelLabel="Cancelar"
-          confirmLabel="Confirmar pago"
-          onCancel={() => setConfirmPago(null)}
-          onConfirm={() => handleMarcarPagado(confirmPago)}
-        />
+        <div className="popup-overlay">
+          <div className="confirm-box">
+            <p>Registrar pago de <strong>{periodoLabel(confirmPago)}</strong>. Podés modificar el monto para registrar un pago parcial.</p>
+            <div className="form-group">
+              <label>Monto ($)</label>
+              <input type="number" step="0.01" min="0" value={montoPago} onChange={e => setMontoPago(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Fecha de pago</label>
+              <input type="date" value={fechaPagoInput} onChange={e => setFechaPagoInput(e.target.value)} />
+            </div>
+            <div className="confirm-actions">
+              <button className="btn-secondary" onClick={() => setConfirmPago(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={() => handleMarcarPagado(confirmPago)}>Confirmar pago</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {popup && <Popup message={popup} onClose={() => setPopup(null)} />}

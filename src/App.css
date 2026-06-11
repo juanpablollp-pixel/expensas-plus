@@ -973,6 +973,7 @@ button { cursor: pointer; font-family: inherit; }
 .estado-pagado    { background: var(--success-soft); color: var(--success); }
 .estado-impago    { background: var(--danger-soft);  color: var(--danger);  }
 .estado-pendiente { background: var(--warning-soft); color: var(--warning); }
+.estado-parcial   { background: #ea580c14; color: #ea580c; }
 .ec-pdf-bar { display: flex; justify-content: stretch; margin-top: 16px; }
 .ec-pdf-bar .btn-primary { width: 100%; }
 
@@ -1229,6 +1230,7 @@ button { cursor: pointer; font-family: inherit; }
 }
 .dash-pill--warning { background: var(--warning-soft); color: var(--warning); }
 .dash-pill--danger  { background: var(--danger-soft);  color: var(--danger);  }
+.dash-pill--success { background: var(--success-soft); color: var(--success); }
 
 /* Grid de montos 2x2 */
 .dash-inq-amounts {
@@ -1320,6 +1322,7 @@ button { cursor: pointer; font-family: inherit; }
 .dash-pago-estado--pagado   { background: var(--success-soft); color: var(--success); }
 .dash-pago-estado--impago   { background: var(--danger-soft);  color: var(--danger);  }
 .dash-pago-estado--pendiente { background: var(--warning-soft); color: var(--warning); }
+.dash-pago-estado--parcial   { background: #ea580c14; color: #ea580c; }
 
 /* ── Selector de período en card ─────────────── */
 .dash-period-nav {

@@ -3,6 +3,7 @@ import { db } from '../db'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
 import DatePicker from '../components/DatePicker'
+import { periodoLabel, formatCurrency } from '../utils/helpers'
 
 const EMPTY_FORM = {
   nombre: '', apellido: '', dni: '', domicilio: '',
@@ -20,23 +21,58 @@ export default function Inquilinos() {
   const [deleteId, setDeleteId] = useState(null)
   const [popup, setPopup] = useState(null)
 
-  useEffect(() => { loadInquilinos() }, [])
+  const [tempPeriodo, setTempPeriodo] = useState('')
+  const [tempPrecio, setTempPrecio] = useState('')
 
   async function loadInquilinos() {
     const data = await db.inquilinos.orderBy('apellido').toArray()
     setInquilinos(data)
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- carga async de DB
+  useEffect(() => { loadInquilinos() }, [])
+
   function openAdd() {
     setForm(EMPTY_FORM)
     setEditingId(null)
+    setTempPeriodo('')
+    setTempPrecio('')
     setShowForm(true)
   }
 
   function openEdit(inq) {
     setForm({ ...inq })
     setEditingId(inq.id)
+    setTempPeriodo('')
+    setTempPrecio('')
     setShowForm(true)
+  }
+
+  function handleAddPeriodPrice() {
+    if (!tempPeriodo || !tempPrecio) {
+      setPopup('Completá el período y el precio del alquiler.')
+      return
+    }
+    const precio = parseFloat(tempPrecio)
+    if (isNaN(precio) || precio < 0) {
+      setPopup('Ingresá un precio de alquiler válido.')
+      return
+    }
+    setForm(f => {
+      const precios = { ...(f.preciosAlquiler || {}) }
+      precios[tempPeriodo] = precio
+      return { ...f, preciosAlquiler: precios }
+    })
+    setTempPeriodo('')
+    setTempPrecio('')
+  }
+
+  function handleRemovePeriodPrice(per) {
+    setForm(f => {
+      const precios = { ...(f.preciosAlquiler || {}) }
+      delete precios[per]
+      return { ...f, preciosAlquiler: precios }
+    })
   }
 
   async function handleSave(e) {
@@ -52,13 +88,40 @@ export default function Inquilinos() {
       return
     }
     const duplicado = await db.inquilinos
-      .filter(i => i.departamento?.trim() === trimmedForm.departamento && i.id !== editingId)
+      .filter(i => i.departamento?.trim().toLowerCase() === trimmedForm.departamento.toLowerCase() && i.id !== editingId)
       .first()
     if (duplicado) {
       setPopup(`El departamento "${trimmedForm.departamento}" ya está asignado a ${duplicado.apellido}, ${duplicado.nombre}.`)
       return
     }
     if (editingId) {
+      // Si cambió el precio base, congelar el precio anterior en los períodos
+      // impagos previos al mes actual (los pagados ya guardan su importe histórico)
+      const original = inquilinos.find(i => i.id === editingId)
+      const precioViejo = Number(original?.precioAlquiler || 0)
+      const precioNuevo = Number(trimmedForm.precioAlquiler || 0)
+      if (precioViejo > 0 && precioViejo !== precioNuevo) {
+        const [gastos, pagos, periodosDb] = await Promise.all([
+          db.gastos.toArray(),
+          db.pagos.where({ inquilinoId: editingId }).toArray(),
+          db.periodos.toArray()
+        ])
+        const pagados = new Set(pagos.map(p => p.periodo))
+        const hoy = new Date()
+        const perActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+        const desde = trimmedForm.fechaInicioContrato ? trimmedForm.fechaInicioContrato.slice(0, 7) : null
+        const precios = { ...(trimmedForm.preciosAlquiler || {}) }
+        const periodosInq = new Set([
+          ...gastos.filter(g => g.tipo === 'general' || g.inquilinoId === editingId).map(g => g.periodo),
+          ...periodosDb.map(p => p.periodo)
+        ])
+        periodosInq.forEach(per => {
+          if (per && per < perActual && !pagados.has(per) && precios[per] === undefined && (!desde || per >= desde)) {
+            precios[per] = precioViejo
+          }
+        })
+        trimmedForm.preciosAlquiler = precios
+      }
       await db.inquilinos.update(editingId, trimmedForm)
       setPopup('¡Inquilino actualizado!')
     } else {
@@ -143,6 +206,64 @@ export default function Inquilinos() {
             {field('Fecha de Inicio del Contrato', 'fechaInicioContrato', 'date')}
             {field('Fecha de Próxima Actualización', 'fechaProximaActualizacion', 'date')}
           </div>
+
+          <div className="form-section-title">Precios de Alquiler por Período (Opcional)</div>
+          
+          <div className="form-row" style={{ display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-end', marginBottom: '14px' }}>
+            <div className="form-group" style={{ flex: '1', marginBottom: 0 }}>
+              <label>Período</label>
+              <input 
+                type="month" 
+                value={tempPeriodo} 
+                onChange={e => setTempPeriodo(e.target.value)} 
+                style={{ minHeight: '44px' }} 
+              />
+            </div>
+            <div className="form-group" style={{ flex: '1', marginBottom: 0 }}>
+              <label>Precio ($)</label>
+              <input 
+                type="number" 
+                value={tempPrecio} 
+                onChange={e => setTempPrecio(e.target.value)} 
+                placeholder="Ej: 180000" 
+                style={{ minHeight: '44px' }} 
+              />
+            </div>
+            <button 
+              type="button" 
+              className="btn-primary" 
+              style={{ minHeight: '44px', padding: '0 16px', flex: '0 0 auto' }} 
+              onClick={handleAddPeriodPrice}
+            >
+              Añadir
+            </button>
+          </div>
+
+          {form.preciosAlquiler && Object.keys(form.preciosAlquiler).length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', letterSpacing: '0.08em' }}>
+                Precios Específicos Configurados
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.entries(form.preciosAlquiler)
+                  .sort((a, b) => b[0].localeCompare(a[0]))
+                  .map(([per, price]) => (
+                    <div key={per} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{periodoLabel(per)}</span>
+                      <span style={{ color: 'var(--accent)', fontWeight: '700' }}>{formatCurrency(price)}</span>
+                      <button 
+                        type="button" 
+                        className="btn-danger btn-sm" 
+                        style={{ minHeight: '32px', height: '32px', padding: '0 10px' }} 
+                        onClick={() => handleRemovePeriodPrice(per)}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           <div className="form-actions">
             <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>

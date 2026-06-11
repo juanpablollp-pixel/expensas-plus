@@ -13,13 +13,13 @@ export default function Historial() {
   const [popup, setPopup] = useState(null)
   const [generating, setGenerating] = useState(false)
 
-  useEffect(() => { loadPeriodos() }, [])
-
   async function loadPeriodos() {
     const gastos = await db.gastos.toArray()
     const set = [...new Set(gastos.map(g => g.periodo))].sort((a, b) => b.localeCompare(a))
     setPeriodos(set)
   }
+
+  useEffect(() => { loadPeriodos() }, [])
 
   async function selectPeriodo(p) {
     setSelected(p)

@@ -20,7 +20,11 @@ function calcMoraImporte(periodo, alquiler, tem) {
 }
 
 function periodoEstado(periodo, pago) {
-  if (pago) return 'pagado'
+  if (pago) {
+    const totalPagado = pago.totalPagado ?? pago.total
+    if (totalPagado < pago.total) return 'parcial'
+    return 'pagado'
+  }
   if (!periodo) return 'pendiente'
   const [year, month] = periodo.split('-').map(Number)
   const dia11 = new Date(year, month, 11, 0, 0, 0, 0)
@@ -101,12 +105,16 @@ function ChevronRight() {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function Inicio({ onNavigate }) {
+export default function Inicio() {
   const [rawData, setRawData]     = useState(null)   // datos crudos de DB
   const [periodos, setPeriodos]   = useState([])     // períodos disponibles, desc
   const [periodoIdx, setPeriodoIdx] = useState(0)    // 0 = más reciente
+  const [tick, setTick] = useState(0)                // re-render cada minuto p/ mora
 
-  useEffect(() => { loadRawData() }, [])
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   async function loadRawData() {
     const [todosInquilinos, todosGastos, todosServicios, todosPagos, configTEM] = await Promise.all([
@@ -131,6 +139,8 @@ export default function Inicio({ onNavigate }) {
       tem: configTEM?.valor ?? 0,
     })
   }
+
+  useEffect(() => { loadRawData() }, [])
 
   // Recalcula stats cada vez que cambia el período seleccionado
   const stats = useMemo(() => {
@@ -164,20 +174,27 @@ export default function Inicio({ onNavigate }) {
 
     const inquilinoRows = inquilinosActivos.map(inq => {
       const expensas = expensasDeInquilino(inq.id)
-      const alquiler = Number(inq.precioAlquiler || 0)
+      const alquiler = inq.preciosAlquiler?.[periodo] ?? Number(inq.precioAlquiler || 0)
       const pago = pagoDeInquilino(inq.id)
-      const mora = pago
-        ? (pago.importeMora || 0)
-        : calcMoraImporte(periodo, alquiler, tem)
+      const expensasHistorico = pago ? (pago.importeExpensas ?? expensas) : expensas
+      const alquilerHistorico = pago ? (pago.importeAlquiler ?? alquiler) : alquiler
+      const mora = pago ? (pago.importeMora ?? 0) : calcMoraImporte(periodo, alquiler, tem)
+      const total = pago ? (pago.total ?? (expensasHistorico + alquilerHistorico + mora)) : (expensasHistorico + alquilerHistorico + mora)
+      const totalPagado = pago ? (pago.totalPagado ?? pago.total) : 0
+      const saldo = pago ? (pago.total - totalPagado) : total
       const dias = diasHasta(inq.fechaProximaActualizacion)
+      
       return {
         id: inq.id,
         nombre: `${inq.nombre} ${inq.apellido}`,
         departamento: inq.departamento,
-        expensas,
-        alquiler,
+        expensas: expensasHistorico,
+        alquiler: alquilerHistorico,
         mora,
-        total: expensas + alquiler + mora,
+        total,
+        totalPagado,
+        saldo,
+        estadoPago: periodoEstado(periodo, pago),
         showPill: dias !== null && dias <= 30,
         pillOverdue: dias !== null && dias <= 0,
         diasActualizacion: dias,
@@ -195,12 +212,15 @@ export default function Inicio({ onNavigate }) {
     const pagosRows = inquilinosActivos.map(inq => {
       const pago = pagoDeInquilino(inq.id)
       const expensas = expensasDeInquilino(inq.id)
-      const alquiler = Number(inq.precioAlquiler || 0)
+      const alquiler = inq.preciosAlquiler?.[periodo] ?? Number(inq.precioAlquiler || 0)
+      const totalOriginal = expensas + alquiler
+      const totalPagado = pago ? (pago.totalPagado ?? pago.total) : 0
       return {
         id: inq.id,
         nombre: `${inq.apellido}, ${inq.nombre}`,
         departamento: inq.departamento,
-        total: pago ? pago.total : (expensas + alquiler),
+        total: totalPagado || (pago ? pago.total : 0),
+        totalOriginal: pago ? pago.total : totalOriginal,
         estado: periodoEstado(periodo, pago),
       }
     })
@@ -213,7 +233,8 @@ export default function Inicio({ onNavigate }) {
       servicioRows,
       pagosRows,
     }
-  }, [rawData, periodos, periodoIdx])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawData, periodos, periodoIdx, tick])
 
   if (!rawData || !stats) {
     return (
@@ -280,8 +301,14 @@ export default function Inicio({ onNavigate }) {
                 <div className="dash-inq-top">
                   <span className="dash-inq-depto">{inq.departamento || '—'}</span>
                   <span className="dash-inq-nombre">{inq.nombre}</span>
+                  {inq.estadoPago === 'pagado' && (
+                    <span className="dash-pill dash-pill--success" style={{ marginLeft: 'auto' }}>Pagado</span>
+                  )}
+                  {inq.estadoPago === 'parcial' && (
+                    <span className="dash-pill dash-pill--warning" style={{ marginLeft: 'auto' }}>Parcial (Resta {formatCurrency(inq.saldo)})</span>
+                  )}
                   {inq.showPill && (
-                    <span className={`dash-pill${inq.pillOverdue ? ' dash-pill--danger' : ' dash-pill--warning'}`}>
+                    <span className={`dash-pill${inq.pillOverdue ? ' dash-pill--danger' : ' dash-pill--warning'}`} style={inq.estadoPago === 'pagado' || inq.estadoPago === 'parcial' ? {} : { marginLeft: 'auto' }}>
                       {inq.pillOverdue
                         ? 'Actualizar precio'
                         : `Actualizar en ${inq.diasActualizacion}d`}
@@ -357,9 +384,16 @@ export default function Inicio({ onNavigate }) {
               <div key={p.id} className="dash-pago-row">
                 <span className="dash-inq-depto">{p.departamento || '—'}</span>
                 <span className="dash-pago-nombre">{p.nombre}</span>
-                <span className="dash-pago-total">{formatCurrency(p.total)}</span>
+                <span className="dash-pago-total">
+                  {formatCurrency(p.total)}
+                  {p.estado === 'parcial' && (
+                    <small style={{ display: 'block', fontSize: '9px', color: 'var(--text-secondary)' }}>
+                      de {formatCurrency(p.totalOriginal)}
+                    </small>
+                  )}
+                </span>
                 <span className={`dash-pago-estado dash-pago-estado--${p.estado}`}>
-                  {p.estado === 'pagado' ? 'Pagado' : p.estado === 'impago' ? 'Impago' : 'Pendiente'}
+                  {p.estado === 'pagado' ? 'Pagado' : p.estado === 'parcial' ? 'Parcial' : p.estado === 'impago' ? 'Impago' : 'Pendiente'}
                 </span>
               </div>
             ))

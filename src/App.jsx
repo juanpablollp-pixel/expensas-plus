@@ -72,7 +72,7 @@ export default function App() {
         <div className="topbar-inner">
           <div className="topbar-brand">
             <img
-              src="/expensas-plus/logo-expensas.png"
+              src={`${import.meta.env.BASE_URL}logo-expensas.png`}
               alt="ExpensasPlus"
               className="topbar-logo"
             />

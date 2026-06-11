@@ -429,7 +429,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Inquilino', 'Su Parte']],
       body: generales.flatMap(g =>
-        inquilinos.map(inq => [
+        inquilinos.filter(inq => inq.estadoContrato === 'Activo').map(inq => [
           serviciosMap[g.servicioId] || g.servicioId,
           toTitleCase(g.empresa),
           g.numeroFactura || '-',
@@ -550,8 +550,10 @@ export async function generateEstadoCuentaPDF(inquilino, filas) {
       formatCurrency(f.expensas),
       formatCurrency(f.alquiler),
       f.mora > 0 ? `${formatCurrency(f.mora)}${f.tiempoMora ? `\n${f.tiempoMora}` : ''}` : '—',
-      formatCurrency(f.total),
-      f.estado === 'pagado' ? 'Pagado' : f.estado === 'impago' ? 'Impago' : 'Pendiente',
+      f.estado === 'parcial'
+        ? `${formatCurrency(f.total)}\n(Abon.: ${formatCurrency(f.totalPagado)})\n(Resta: ${formatCurrency(f.saldo)})`
+        : formatCurrency(f.total),
+      f.estado === 'pagado' ? 'Pagado' : f.estado === 'parcial' ? 'Parcial' : f.estado === 'impago' ? 'Impago' : 'Pendiente',
       f.fechaPago ? new Date(f.fechaPago).toLocaleDateString('es-AR') : '—',
     ]),
     columnStyles: {

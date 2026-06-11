@@ -14,7 +14,6 @@ export default function CargarGastos() {
   const [periodo, setPeriodo] = useState('')
   const [servicios, setServicios] = useState([])
   const [selectedServicio, setSelectedServicio] = useState(null)
-  const [tipoCargo, setTipoCargo] = useState(null)  // 'general' | 'particular'
   const [gastosEnServicio, setGastosEnServicio] = useState([])
   const [inquilinos, setInquilinos] = useState([])
   const [form, setForm] = useState(EMPTY_GASTO)
@@ -27,7 +26,6 @@ export default function CargarGastos() {
 
   // Dialogs / popups
   const [popup, setPopup] = useState(null)
-  const [confirmCancelar, setConfirmCancelar] = useState(false)
   const [deleteGastoId, setDeleteGastoId] = useState(null)
   const [deleteServicioId, setDeleteServicioId] = useState(null)
 
@@ -185,12 +183,12 @@ export default function CargarGastos() {
         </div>
 
         <div className="tipo-cargo-grid">
-          <button className="tipo-card" onClick={() => { setTipoCargo('general'); setForm(EMPTY_GASTO); setEditingGastoId(null); setStep('formGeneral') }}>
+          <button className="tipo-card" onClick={() => { setForm(EMPTY_GASTO); setEditingGastoId(null); setStep('formGeneral') }}>
             <span className="tipo-icon">👥</span>
             <h3>Cargo General</h3>
             <p>Divide el importe en partes iguales entre todos los inquilinos</p>
           </button>
-          <button className="tipo-card" onClick={() => { setTipoCargo('particular'); setForm(EMPTY_GASTO); setEditingGastoId(null); setStep('formParticular') }}>
+          <button className="tipo-card" onClick={() => { setForm(EMPTY_GASTO); setEditingGastoId(null); setStep('formParticular') }}>
             <span className="tipo-icon">👤</span>
             <h3>Cargo Particular</h3>
             <p>Asigna el importe completo a un inquilino específico</p>
@@ -216,7 +214,6 @@ export default function CargarGastos() {
                     <button className="btn-secondary btn-sm" onClick={() => {
                       setForm({ ...g, importe: String(g.importe) })
                       setEditingGastoId(g.id)
-                      setTipoCargo(g.tipo)
                       setStep(g.tipo === 'general' ? 'formGeneral' : 'formParticular')
                     }}>Editar</button>
                     <button className="btn-danger btn-sm" onClick={() => setDeleteGastoId(g.id)}>Eliminar</button>
@@ -228,11 +225,7 @@ export default function CargarGastos() {
         )}
 
         <div className="form-actions">
-          <button className="btn-secondary" onClick={() => setConfirmCancelar(true)}>Cancelar</button>
-          <button className="btn-primary" onClick={async () => {
-            setPopup(`¡Cargos de ${selectedServicio?.nombre} guardados!`)
-            setStep('servicios')
-          }}>Guardar</button>
+          <button className="btn-primary" onClick={() => setStep('servicios')}>✓ Listo</button>
         </div>
 
         {deleteGastoId && (
@@ -246,22 +239,6 @@ export default function CargarGastos() {
               await db.gastos.delete(deleteGastoId)
               setDeleteGastoId(null)
               await loadGastosServicio(selectedServicio.id, periodo)
-            }}
-          />
-        )}
-
-        {confirmCancelar && (
-          <ConfirmDialog
-            message="¿Cancelar la operación? Se perderán los cambios no guardados."
-            cancelLabel="Cancelar"
-            confirmLabel="Continuar"
-            confirmDanger
-            onCancel={() => setConfirmCancelar(false)}
-            onConfirm={async () => {
-              // Eliminar gastos sin guardar de esta sesión — en este flujo guardamos en DB al agregar,
-              // así que sólo volvemos a la lista de servicios
-              setConfirmCancelar(false)
-              setStep('servicios')
             }}
           />
         )}

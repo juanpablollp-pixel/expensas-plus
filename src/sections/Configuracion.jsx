@@ -92,9 +92,12 @@ export default function Configuracion() {
       const text = await pendingFile.text()
       const data = JSON.parse(text)
 
-      // Validación básica: debe tener al menos una de las tablas esperadas
-      const tablas = ['inquilinos', 'servicios', 'gastos', 'periodos']
-      const valido = tablas.some(t => Array.isArray(data[t]))
+      // Validación: al menos una tabla esperada, y toda tabla presente debe ser
+      // un array de objetos (evita borrar todo e importar datos corruptos)
+      const tablas = ['inquilinos', 'servicios', 'gastos', 'periodos', 'pagos', 'config']
+      const valido = tablas.some(t => Array.isArray(data[t])) &&
+        tablas.every(t => data[t] === undefined ||
+          (Array.isArray(data[t]) && data[t].every(r => r && typeof r === 'object')))
       if (!valido) throw new Error('estructura inválida')
 
       // Borrar y reimportar dentro de una transacción: si algo falla, se revierte todo
