@@ -326,8 +326,9 @@ export default function EstadoDeCuenta() {
                     </td>
                     <td>
                       <span className={`estado-badge ${
-                        estado === 'pagado'   ? 'estado-pagado'   :
-                        estado === 'impago'   ? 'estado-impago'   : 'estado-pendiente'
+                        estado === 'pagado'   ? 'estado-pagado'  :
+                        estado === 'parcial'  ? 'estado-parcial' :
+                        estado === 'impago'   ? 'estado-impago'  : 'estado-pendiente'
                       }`}>
                         {estado === 'pagado' ? 'Pagado' : estado === 'parcial' ? 'Parcial' : estado === 'impago' ? 'Impago' : 'Pendiente'}
                       </span>

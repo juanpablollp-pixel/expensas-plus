@@ -1,16 +1,39 @@
-# React + Vite
+# ExpensasPlus
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PWA para la gestión de expensas de un consorcio: carga de gastos por servicio y período, liquidación de expensas por inquilino, estado de cuenta con alquiler y mora, historial y exportación a PDF. Funciona 100% offline — todos los datos se guardan localmente en el dispositivo (IndexedDB).
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19 + Vite** — UI y build
+- **Dexie** — base de datos local (IndexedDB)
+- **jsPDF + jspdf-autotable** — generación de PDFs
+- **vite-plugin-pwa** — instalable como app, actualización automática
 
-## React Compiler
+## Secciones
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Sección | Función |
+|---|---|
+| Inicio | Dashboard con resumen por período: expensas, alquiler, mora y pagos |
+| Gastos | Carga de cargos generales (prorrateo) y particulares por servicio |
+| Expensas | Previsualización y exportación del PDF de liquidación por inquilino |
+| Inquilinos | ABM de inquilinos, contrato y precios de alquiler por período |
+| Cuenta | Estado de cuenta por inquilino: pagos (totales o parciales) y mora |
+| Historial | Detalle de períodos pasados, exportación y borrado |
+| Configuración | Datos del administrador (pie de los PDFs), TEM de mora y backup JSON |
 
-## Expanding the ESLint configuration
+## Desarrollo
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm install
+npm run dev      # servidor de desarrollo
+npm run build    # build de producción (dist/)
+npm run lint     # eslint
+```
+
+## Deploy
+
+Cada push a `main` se deploya automáticamente a GitHub Pages mediante GitHub Actions ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)). La app se sirve bajo el path `/expensas-plus/`.
+
+## Backup
+
+Desde **Configuración → Copia de Seguridad** se puede exportar/importar un JSON con todos los datos. La importación reemplaza por completo los datos locales.

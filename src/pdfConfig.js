@@ -12,9 +12,3 @@ export const PDF_FOOTER = {
   alias: 'ALIAS.PAGO',
   mediosDePago: 'Transferencia bancaria / Efectivo'
 }
-
-// ============================================================
-// Para insertar el logo en el PDF, buscá la función
-// generateInquilinoPDF en src/utils/pdfGenerator.js
-// y descomentá la línea indicada con "// LOGO:"
-// ============================================================
