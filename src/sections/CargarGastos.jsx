@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { periodoLabel } from '../utils/helpers'
+import { periodoLabel, formatCurrency } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 import DatePicker from '../components/DatePicker'
 
@@ -31,6 +31,27 @@ export default function CargarGastos() {
 
   useEffect(() => { db.servicios.toArray().then(setServicios) }, [step])
   useEffect(() => { db.inquilinos.orderBy('apellido').toArray().then(setInquilinos) }, [])
+
+  // Historial de cargos anteriores del mismo servicio y tipo, para precargar el formulario
+  const [historialCargos, setHistorialCargos] = useState([])
+  useEffect(() => {
+    if ((step === 'formGeneral' || step === 'formParticular') && selectedServicio) {
+      const tipo = step === 'formParticular' ? 'particular' : 'general'
+      db.gastos.where({ servicioId: selectedServicio.id }).toArray().then(gs => {
+        const previos = gs
+          .filter(g => g.tipo === tipo && g.periodo !== periodo)
+          .sort((a, b) => b.periodo.localeCompare(a.periodo))
+        // Uno por empresa (+inquilino si es particular), el más reciente
+        const vistos = new Set()
+        const unicos = []
+        for (const g of previos) {
+          const key = `${(g.empresa || '').toLowerCase()}|${g.inquilinoId ?? ''}`
+          if (!vistos.has(key)) { vistos.add(key); unicos.push(g) }
+        }
+        setHistorialCargos(unicos)
+      })
+    }
+  }, [step, selectedServicio, periodo])
 
   async function loadGastosServicio(svcId, per) {
     const g = await db.gastos.where({ servicioId: svcId, periodo: per }).toArray()
@@ -288,6 +309,35 @@ export default function CargarGastos() {
         </div>
 
         <form className="form-card" onSubmit={submitGasto}>
+          {!editingGastoId && historialCargos.length > 0 && (
+            <div className="form-group">
+              <label>Precargar desde historial (opcional)</label>
+              <select
+                value=""
+                onChange={e => {
+                  const g = historialCargos.find(h => h.id === Number(e.target.value))
+                  if (g) setForm(f => ({
+                    ...f,
+                    empresa: g.empresa || '',
+                    importe: String(g.importe ?? ''),
+                    numeroFactura: g.numeroFactura || '',
+                    inquilinoId: g.inquilinoId ? String(g.inquilinoId) : f.inquilinoId
+                  }))
+                }}
+              >
+                <option value="">— Elegí un cargo anterior para completar el formulario —</option>
+                {historialCargos.map(g => {
+                  const inq = inquilinos.find(i => i.id === g.inquilinoId)
+                  return (
+                    <option key={g.id} value={g.id}>
+                      {g.empresa} — {formatCurrency(g.importe)} ({periodoLabel(g.periodo)}{inq ? ` · ${inq.apellido}` : ''})
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
             <label>Período</label>
             <input type="text" value={periodoLabel(periodo)} readOnly className="readonly-input" />
