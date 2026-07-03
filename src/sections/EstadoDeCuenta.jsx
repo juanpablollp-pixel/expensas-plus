@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { db } from '../db'
 import Popup from '../components/Popup'
 import { generateEstadoCuentaPDF } from '../utils/pdfGenerator'
-import { periodoLabel, formatCurrency, divisorGasto } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from '../utils/helpers'
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ export default function EstadoDeCuenta() {
 
   // Calcula expensas de un período para el inquilino
   function expensasPeriodo(periodo) {
-    const totalInqs = inquilinos.filter(i => i.estadoContrato === 'Activo').length || 1
+    const totalInqs = inquilinos.filter(i => activoEnPeriodo(i, periodo)).length || 1
     const generales = gastos
       .filter(g => g.periodo === periodo && g.tipo === 'general')
       .reduce((s, g) => s + Number(g.importe) / divisorGasto(g, totalInqs), 0)

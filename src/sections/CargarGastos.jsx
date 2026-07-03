@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, activoEnPeriodo } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 import DatePicker from '../components/DatePicker'
 
@@ -382,7 +382,7 @@ export default function CargarGastos() {
                 step="1"
                 value={form.divisor}
                 onChange={e => setForm(f => ({ ...f, divisor: e.target.value }))}
-                placeholder={`Por defecto: ${inquilinos.filter(i => i.estadoContrato === 'Activo').length || 1} (inquilinos activos)`}
+                placeholder={`Por defecto: ${inquilinos.filter(i => activoEnPeriodo(i, periodo)).length || 1} (inquilinos activos)`}
               />
               <p className="field-hint">Dejalo vacío para dividir entre todos los inquilinos activos.</p>
             </div>
