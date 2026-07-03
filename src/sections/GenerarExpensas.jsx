@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import { generateInquilinoPDF } from '../utils/pdfGenerator'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 
 export default function GenerarExpensas() {
@@ -16,8 +16,7 @@ export default function GenerarExpensas() {
   const [generating, setGenerating] = useState(false)
 
   useEffect(() => {
-    // Sólo inquilinos activos: a los inactivos/finalizados no se les liquida
-    db.inquilinos.orderBy('apellido').filter(i => i.estadoContrato === 'Activo').toArray().then(setInquilinos)
+    db.inquilinos.orderBy('apellido').toArray().then(setInquilinos)
     db.servicios.toArray().then(svcs => {
       const map = {}
       svcs.forEach(s => { map[s.id] = s.nombre })
@@ -25,10 +24,13 @@ export default function GenerarExpensas() {
     })
   }, [])
 
+  // Sólo inquilinos activos con contrato vigente en el período: a los demás no se les liquida
+  const inquilinosPeriodo = inquilinos.filter(i => activoEnPeriodo(i, periodo))
+
   async function selectInquilino(inq) {
     setSelected(inq)
     const allGastos = await db.gastos.where('periodo').equals(periodo).toArray()
-    const totalInqs = await db.inquilinos.filter(i => i.estadoContrato === 'Activo').count() || 1
+    const totalInqs = await db.inquilinos.filter(i => activoEnPeriodo(i, periodo)).count() || 1
     const generales = allGastos
       .filter(g => g.tipo === 'general')
       .map(g => ({ ...g, servicio: serviciosMap[g.servicioId] || '?' }))
@@ -54,7 +56,7 @@ export default function GenerarExpensas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
-  const totalGeneral = preview ? preview.generales.reduce((s, g) => s + Number(g.importe) / preview.totalInqs, 0) : 0
+  const totalGeneral = preview ? preview.generales.reduce((s, g) => s + Number(g.importe) / divisorGasto(g, preview.totalInqs), 0) : 0
   const totalParticular = preview ? preview.particulares.reduce((s, g) => s + Number(g.importe), 0) : 0
 
   return (
@@ -70,8 +72,8 @@ export default function GenerarExpensas() {
         {/* Lista de inquilinos */}
         <div className="inq-list-panel">
           <h3>Inquilinos</h3>
-          {inquilinos.length === 0 && <p className="empty-hint">No hay inquilinos registrados.</p>}
-          {inquilinos.map(inq => (
+          {inquilinosPeriodo.length === 0 && <p className="empty-hint">No hay inquilinos para este período.</p>}
+          {inquilinosPeriodo.map(inq => (
             <button
               key={inq.id}
               className={`inq-list-item ${selected?.id === inq.id ? 'active' : ''}`}
@@ -121,8 +123,8 @@ export default function GenerarExpensas() {
                             <td>{g.servicio}</td>
                             <td>{g.empresa}</td>
                             <td>{formatCurrency(g.importe)}</td>
-                            <td>{preview.totalInqs}</td>
-                            <td><strong>{formatCurrency(g.importe / preview.totalInqs)}</strong></td>
+                            <td>{divisorGasto(g, preview.totalInqs)}</td>
+                            <td><strong>{formatCurrency(g.importe / divisorGasto(g, preview.totalInqs))}</strong></td>
                           </tr>
                         ))}
                       </tbody>

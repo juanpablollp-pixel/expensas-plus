@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import Popup from '../components/Popup'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, activoEnPeriodo } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 import DatePicker from '../components/DatePicker'
 
-const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '' }
+const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '', divisor: '' }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function CargarGastos() {
@@ -229,11 +229,12 @@ export default function CargarGastos() {
                     <strong>{g.empresa}</strong>
                     <span>${Number(g.importe).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                     {inq && <span className="inq-chip">{inq.apellido}, {inq.nombre}</span>}
+                    {g.tipo === 'general' && g.divisor > 0 && <span className="factura-chip">÷ {g.divisor} unidades</span>}
                     {g.numeroFactura && <span className="factura-chip">F#{g.numeroFactura}</span>}
                   </div>
                   <div className="card-actions">
                     <button className="btn-secondary btn-sm" onClick={() => {
-                      setForm({ ...g, importe: String(g.importe) })
+                      setForm({ ...g, importe: String(g.importe), divisor: g.divisor ? String(g.divisor) : '' })
                       setEditingGastoId(g.id)
                       setStep(g.tipo === 'general' ? 'formGeneral' : 'formParticular')
                     }}>Editar</button>
@@ -287,7 +288,8 @@ export default function CargarGastos() {
         fechaEmision: form.fechaEmision,
         fechaVencimiento: form.fechaVencimiento,
         numeroFactura: form.numeroFactura,
-        inquilinoId: isParticular ? parseInt(form.inquilinoId) : null
+        inquilinoId: isParticular ? parseInt(form.inquilinoId) : null,
+        divisor: !isParticular && parseInt(form.divisor) > 0 ? parseInt(form.divisor) : null
       }
       if (editingGastoId) {
         await db.gastos.update(editingGastoId, data)
@@ -321,7 +323,8 @@ export default function CargarGastos() {
                     empresa: g.empresa || '',
                     importe: String(g.importe ?? ''),
                     numeroFactura: g.numeroFactura || '',
-                    inquilinoId: g.inquilinoId ? String(g.inquilinoId) : f.inquilinoId
+                    inquilinoId: g.inquilinoId ? String(g.inquilinoId) : f.inquilinoId,
+                    divisor: g.divisor ? String(g.divisor) : f.divisor
                   }))
                 }}
               >
@@ -369,6 +372,21 @@ export default function CargarGastos() {
               <input type="text" value={form.numeroFactura} onChange={e => setForm(f => ({ ...f, numeroFactura: e.target.value }))} />
             </div>
           </div>
+
+          {!isParticular && (
+            <div className="form-group">
+              <label>Dividir entre (unidades)</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.divisor}
+                onChange={e => setForm(f => ({ ...f, divisor: e.target.value }))}
+                placeholder={`Por defecto: ${inquilinos.filter(i => activoEnPeriodo(i, periodo)).length || 1} (inquilinos activos)`}
+              />
+              <p className="field-hint">Dejalo vacío para dividir entre todos los inquilinos activos.</p>
+            </div>
+          )}
 
           {isParticular && (
             <div className="form-group">

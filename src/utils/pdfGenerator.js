@@ -1,8 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
-import { getAdminConfig } from '../db'
-import { periodoLabel, formatCurrency } from './helpers'
+import { db, getAdminConfig } from '../db'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from './helpers'
 
 // Tailwind slate palette — exact hex values
 const S = {
@@ -33,6 +33,17 @@ async function resolveFooter() {
   const saved = await getAdminConfig()
   if (saved && saved.administrador) return saved
   return PDF_FOOTER_DEFAULT
+}
+
+// Vencimiento del comprobante: el día configurado, sobre el mes siguiente al
+// período liquidado (igual criterio que la mora). Null si no está configurado.
+async function resolveVencimientoComprobante(periodo) {
+  const row = await db.config.get('dia_vencimiento')
+  const dia = parseInt(row?.valor)
+  if (!dia || dia < 1) return null
+  const [y, m] = periodo.split('-').map(Number)
+  const ultimoDia = new Date(y, m + 1, 0).getDate() // último día del mes siguiente
+  return new Date(y, m, Math.min(dia, ultimoDia)).toLocaleDateString('es-AR')
 }
 
 // ── ENCABEZADO ───────────────────────────────────────────────────────────────
@@ -271,7 +282,7 @@ function addFooter(doc, pageWidth, pageHeight, footer, totalData) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7.5)
       doc.setTextColor(...S.s500)
-      doc.text(`Vencimiento general: ${totalData.vencimiento}`, RX, FY + 32, { align: 'right' })
+      doc.text(`Vencimiento: ${totalData.vencimiento}`, RX, FY + 32, { align: 'right' })
     }
   }
 }
@@ -306,6 +317,7 @@ function addTotalBox(doc, pageWidth, startY, lines) {
 // ── PDF LIQUIDACIÓN INQUILINO ─────────────────────────────────────────────────
 export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, gastosParticulares, totalInquilinos) {
   const footer = await resolveFooter()
+  const vencComprobante = await resolveVencimientoComprobante(periodo)
 
   const doc        = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
@@ -334,22 +346,24 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Total', 'Su Parte']],
+      head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Total', 'Unid.', 'Su Parte']],
       body: gastosGenerales.map(g => [
         g.servicio,
         toTitleCase(g.empresa),
         g.numeroFactura || '-',
         g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
         formatCurrency(g.importe),
-        formatCurrency(g.importe / totalInquilinos),
+        String(divisorGasto(g, totalInquilinos)),
+        formatCurrency(g.importe / divisorGasto(g, totalInquilinos)),
       ]),
       columnStyles: {
-        0: { cellWidth: 32, fontStyle: 'bold', textColor: S.s900 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 32 },
+        0: { cellWidth: 30, fontStyle: 'bold', textColor: S.s900 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 30 },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 38, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
+        5: { cellWidth: 14, halign: 'center' },
+        6: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
       },
       margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
@@ -383,9 +397,11 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
   }
 
   // Total + vencimiento más lejano para el pie
-  const totGen = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / totalInquilinos, 0)
+  const totGen = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / divisorGasto(g, totalInquilinos), 0)
   const totPar = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
 
+  // Vencimiento configurado en Configuración; si no está, se usa como respaldo
+  // el vencimiento más lejano de las facturas cargadas
   const allVenc = [...gastosGenerales, ...gastosParticulares]
     .map(g => g.fechaVencimiento).filter(Boolean).sort()
   const vencGeneral = allVenc.length
@@ -394,7 +410,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
 
   addFooter(doc, pageWidth, pageHeight, footer, {
     amount:      formatCurrency(totGen + totPar),
-    vencimiento: vencGeneral,
+    vencimiento: vencComprobante ?? vencGeneral,
   })
 
   doc.save(`Expensas_${inquilino.apellido}_${inquilino.nombre}_${periodo}.pdf`)
@@ -429,14 +445,14 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Inquilino', 'Su Parte']],
       body: generales.flatMap(g =>
-        inquilinos.filter(inq => inq.estadoContrato === 'Activo').map(inq => [
+        inquilinos.filter(inq => activoEnPeriodo(inq, periodo)).map(inq => [
           serviciosMap[g.servicioId] || g.servicioId,
           toTitleCase(g.empresa),
           g.numeroFactura || '-',
           g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
           formatCurrency(g.importe),
           `${inq.apellido}, ${inq.nombre}`,
-          formatCurrency(g.importe / divisor),
+          formatCurrency(g.importe / divisorGasto(g, divisor)),
         ])
       ),
       columnStyles: {

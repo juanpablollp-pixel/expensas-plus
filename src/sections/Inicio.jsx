@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { db } from '../db'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from '../utils/helpers'
 
 function diasHasta(fechaStr) {
   if (!fechaStr) return null
@@ -148,7 +148,8 @@ export default function Inicio() {
     const { todosInquilinos, todosGastos, todosServicios, todosPagos, tem } = rawData
     const periodo = periodos[periodoIdx] ?? null
 
-    const inquilinosActivos = todosInquilinos.filter(i => i.estadoContrato === 'Activo')
+    // Sólo inquilinos cuyo contrato ya había comenzado en el período seleccionado
+    const inquilinosActivos = todosInquilinos.filter(i => activoEnPeriodo(i, periodo))
     const countActivos = inquilinosActivos.length || 1
 
     const gastosDelPeriodo = periodo
@@ -156,20 +157,19 @@ export default function Inicio() {
       : []
     const totalGastosPeriodo = gastosDelPeriodo.reduce((s, g) => s + Number(g.importe || 0), 0)
 
-    const totalGenerales = gastosDelPeriodo
-      .filter(g => g.tipo === 'general')
-      .reduce((s, g) => s + Number(g.importe || 0), 0)
-
     const pagoDeInquilino = (inqId) =>
       todosPagos.find(
         p => Number(p.inquilinoId) === Number(inqId) && p.periodo === periodo
       ) ?? null
 
     const expensasDeInquilino = (inqId) => {
+      const generales = gastosDelPeriodo
+        .filter(g => g.tipo === 'general')
+        .reduce((s, g) => s + Number(g.importe || 0) / divisorGasto(g, countActivos), 0)
       const particulares = gastosDelPeriodo
         .filter(g => g.tipo === 'particular' && Number(g.inquilinoId) === Number(inqId))
         .reduce((s, g) => s + Number(g.importe || 0), 0)
-      return (totalGenerales / countActivos) + particulares
+      return generales + particulares
     }
 
     const inquilinoRows = inquilinosActivos.map(inq => {
