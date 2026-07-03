@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
-import { getAdminConfig } from '../db'
+import { db, getAdminConfig } from '../db'
 import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from './helpers'
 
 // Tailwind slate palette — exact hex values
@@ -33,6 +33,17 @@ async function resolveFooter() {
   const saved = await getAdminConfig()
   if (saved && saved.administrador) return saved
   return PDF_FOOTER_DEFAULT
+}
+
+// Vencimiento del comprobante: el día configurado, sobre el mes siguiente al
+// período liquidado (igual criterio que la mora). Null si no está configurado.
+async function resolveVencimientoComprobante(periodo) {
+  const row = await db.config.get('dia_vencimiento')
+  const dia = parseInt(row?.valor)
+  if (!dia || dia < 1) return null
+  const [y, m] = periodo.split('-').map(Number)
+  const ultimoDia = new Date(y, m + 1, 0).getDate() // último día del mes siguiente
+  return new Date(y, m, Math.min(dia, ultimoDia)).toLocaleDateString('es-AR')
 }
 
 // ── ENCABEZADO ───────────────────────────────────────────────────────────────
@@ -271,7 +282,7 @@ function addFooter(doc, pageWidth, pageHeight, footer, totalData) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7.5)
       doc.setTextColor(...S.s500)
-      doc.text(`Vencimiento general: ${totalData.vencimiento}`, RX, FY + 32, { align: 'right' })
+      doc.text(`Vencimiento: ${totalData.vencimiento}`, RX, FY + 32, { align: 'right' })
     }
   }
 }
@@ -306,6 +317,7 @@ function addTotalBox(doc, pageWidth, startY, lines) {
 // ── PDF LIQUIDACIÓN INQUILINO ─────────────────────────────────────────────────
 export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, gastosParticulares, totalInquilinos) {
   const footer = await resolveFooter()
+  const vencComprobante = await resolveVencimientoComprobante(periodo)
 
   const doc        = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth  = doc.internal.pageSize.getWidth()
@@ -388,6 +400,8 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
   const totGen = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / divisorGasto(g, totalInquilinos), 0)
   const totPar = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
 
+  // Vencimiento configurado en Configuración; si no está, se usa como respaldo
+  // el vencimiento más lejano de las facturas cargadas
   const allVenc = [...gastosGenerales, ...gastosParticulares]
     .map(g => g.fechaVencimiento).filter(Boolean).sort()
   const vencGeneral = allVenc.length
@@ -396,7 +410,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
 
   addFooter(doc, pageWidth, pageHeight, footer, {
     amount:      formatCurrency(totGen + totPar),
-    vencimiento: vencGeneral,
+    vencimiento: vencComprobante ?? vencGeneral,
   })
 
   doc.save(`Expensas_${inquilino.apellido}_${inquilino.nombre}_${periodo}.pdf`)

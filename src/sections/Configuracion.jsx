@@ -19,6 +19,7 @@ export default function Configuracion() {
   const [tab, setTab] = useState('datos')           // 'datos' | 'backup'
   const [form, setForm] = useState(EMPTY_ADMIN)
   const [tem, setTem] = useState(EMPTY_TEM)
+  const [diaVenc, setDiaVenc] = useState('')
   const [popup, setPopup] = useState(null)
   const [confirmImport, setConfirmImport] = useState(false)
   const [pendingFile, setPendingFile] = useState(null)
@@ -29,14 +30,17 @@ export default function Configuracion() {
   useEffect(() => {
     db.config.get('admin').then(row => { if (row?.valor) setForm(row.valor) })
     db.config.get('tem_mora').then(row => { if (row?.valor !== undefined) setTem({ tem: row.valor }) })
+    db.config.get('dia_vencimiento').then(row => { if (row?.valor) setDiaVenc(String(row.valor)) })
   }, [])
 
-  // ── Guardar datos del administrador y TEM ──
+  // ── Guardar datos del administrador, TEM y día de vencimiento ──
   async function handleSave(e) {
     e.preventDefault()
+    const dia = parseInt(diaVenc)
     await Promise.all([
       db.config.put({ clave: 'admin', valor: form }),
-      db.config.put({ clave: 'tem_mora', valor: parseFloat(tem.tem) || 0 })
+      db.config.put({ clave: 'tem_mora', valor: parseFloat(tem.tem) || 0 }),
+      db.config.put({ clave: 'dia_vencimiento', valor: dia >= 1 && dia <= 31 ? dia : null })
     ])
     setPopup('¡Datos guardados!')
   }
@@ -229,6 +233,28 @@ export default function Configuracion() {
               onChange={e => setForm(f => ({ ...f, mediosDePago: e.target.value }))}
               placeholder="Ej: Transferencia bancaria / Efectivo"
             />
+          </div>
+
+          <div className="form-section-title">Vencimiento del Comprobante</div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Día de vencimiento (1-31)</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                step="1"
+                value={diaVenc}
+                onChange={e => setDiaVenc(e.target.value)}
+                placeholder="Ej: 10"
+              />
+            </div>
+            <div className="form-group">
+              <p className="tem-hint">
+                Fecha de vencimiento que figura en el PDF de expensas: este día
+                del <strong>mes siguiente</strong> al período liquidado.
+              </p>
+            </div>
           </div>
 
           <div className="form-section-title">Configuración de Mora</div>
