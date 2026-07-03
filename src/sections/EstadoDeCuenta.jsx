@@ -65,6 +65,9 @@ export default function EstadoDeCuenta() {
   const [confirmPago, setConfirmPago] = useState(null)  // periodo a marcar pagado
   const [montoPago, setMontoPago] = useState('')
   const [fechaPagoInput, setFechaPagoInput] = useState('')
+  const [editPago, setEditPago] = useState(null)        // periodo cuyo pago se corrige
+  const [montoEditPago, setMontoEditPago] = useState('')
+  const [fechaEditPago, setFechaEditPago] = useState('')
   const [popup, setPopup] = useState(null)
   const [generando, setGenerando] = useState(false)
 
@@ -193,6 +196,32 @@ export default function EstadoDeCuenta() {
     await loadDetalle(selected)
     setConfirmPago(null)
     setPopup('¡Pago registrado!')
+  }
+
+  // Corregir un pago ya registrado: reemplaza el total abonado (no suma)
+  function abrirEditarPago(periodo) {
+    const pago = pagosMap[periodo]
+    if (!pago) return
+    setMontoEditPago(String(pago.totalPagado ?? pago.total))
+    setFechaEditPago(pago.fechaPago ? pago.fechaPago.slice(0, 10) : '')
+    setEditPago(periodo)
+  }
+
+  async function handleGuardarEdicionPago() {
+    const pago = pagosMap[editPago]
+    if (!pago) return
+    const monto = parseFloat(montoEditPago)
+    if (isNaN(monto) || monto <= 0) {
+      setPopup('Ingresá un monto válido.')
+      return
+    }
+    const fechaPago = fechaEditPago
+      ? new Date(fechaEditPago + 'T' + new Date().toTimeString().slice(0, 8)).toISOString()
+      : pago.fechaPago
+    await db.pagos.update(pago.id, { totalPagado: monto, fechaPago })
+    await loadDetalle(selected)
+    setEditPago(null)
+    setPopup('¡Pago actualizado!')
   }
 
   // Datos de una fila de período: usa los importes históricos del pago si existe
@@ -334,16 +363,23 @@ export default function EstadoDeCuenta() {
                       </span>
                     </td>
                     <td>
-                      {(estado === 'pendiente' || estado === 'impago' || estado === 'parcial') && (
-                        <button className="btn-primary btn-sm" onClick={() => setConfirmPago(p)}>
-                          Marcar Pagado
-                        </button>
-                      )}
-                      {estado === 'pagado' && pago?.fechaPago && (
-                        <span className="ec-fecha-pago">
-                          {new Date(pago.fechaPago).toLocaleDateString('es-AR')}
-                        </span>
-                      )}
+                      <div className="ec-acciones">
+                        {(estado === 'pendiente' || estado === 'impago' || estado === 'parcial') && (
+                          <button className="btn-primary btn-sm" onClick={() => setConfirmPago(p)}>
+                            Marcar Pagado
+                          </button>
+                        )}
+                        {estado === 'pagado' && pago?.fechaPago && (
+                          <span className="ec-fecha-pago">
+                            {new Date(pago.fechaPago).toLocaleDateString('es-AR')}
+                          </span>
+                        )}
+                        {pago && (
+                          <button className="btn-secondary btn-sm" onClick={() => abrirEditarPago(p)}>
+                            Editar pago
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -375,6 +411,30 @@ export default function EstadoDeCuenta() {
             <div className="confirm-actions">
               <button className="btn-secondary" onClick={() => setConfirmPago(null)}>Cancelar</button>
               <button className="btn-primary" onClick={() => handleMarcarPagado(confirmPago)}>Confirmar pago</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editPago && (
+        <div className="popup-overlay">
+          <div className="confirm-box">
+            <p>
+              Corregir el pago de <strong>{periodoLabel(editPago)}</strong>.
+              El monto ingresado <strong>reemplaza</strong> el total abonado registrado
+              (total del período: {formatCurrency(filaPeriodo(editPago).total)}).
+            </p>
+            <div className="form-group">
+              <label>Total abonado ($)</label>
+              <input type="number" step="0.01" min="0" value={montoEditPago} onChange={e => setMontoEditPago(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Fecha de pago</label>
+              <input type="date" value={fechaEditPago} onChange={e => setFechaEditPago(e.target.value)} />
+            </div>
+            <div className="confirm-actions">
+              <button className="btn-secondary" onClick={() => setEditPago(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleGuardarEdicionPago}>Guardar</button>
             </div>
           </div>
         </div>
