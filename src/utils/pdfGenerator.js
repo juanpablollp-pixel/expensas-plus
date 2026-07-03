@@ -2,7 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { getAdminConfig } from '../db'
-import { periodoLabel, formatCurrency } from './helpers'
+import { periodoLabel, formatCurrency, divisorGasto } from './helpers'
 
 // Tailwind slate palette — exact hex values
 const S = {
@@ -334,22 +334,24 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
     autoTable(doc, {
       ...opts,
       startY: currentY,
-      head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Total', 'Su Parte']],
+      head: [['Servicio', 'Empresa', 'Factura N°', 'Venc.', 'Total', 'Unid.', 'Su Parte']],
       body: gastosGenerales.map(g => [
         g.servicio,
         toTitleCase(g.empresa),
         g.numeroFactura || '-',
         g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
         formatCurrency(g.importe),
-        formatCurrency(g.importe / totalInquilinos),
+        String(divisorGasto(g, totalInquilinos)),
+        formatCurrency(g.importe / divisorGasto(g, totalInquilinos)),
       ]),
       columnStyles: {
-        0: { cellWidth: 32, fontStyle: 'bold', textColor: S.s900 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 32 },
+        0: { cellWidth: 30, fontStyle: 'bold', textColor: S.s900 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 30 },
         3: { cellWidth: 22, halign: 'center' },
         4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 38, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
+        5: { cellWidth: 14, halign: 'center' },
+        6: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: S.s900 },
       },
       margin: { left: 14, right: 14, bottom: FOOTER_RESERVED },
     })
@@ -383,7 +385,7 @@ export async function generateInquilinoPDF(inquilino, periodo, gastosGenerales, 
   }
 
   // Total + vencimiento más lejano para el pie
-  const totGen = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / totalInquilinos, 0)
+  const totGen = gastosGenerales.reduce((s, g)   => s + Number(g.importe) / divisorGasto(g, totalInquilinos), 0)
   const totPar = gastosParticulares.reduce((s, g) => s + Number(g.importe), 0)
 
   const allVenc = [...gastosGenerales, ...gastosParticulares]
@@ -436,7 +438,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
           g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-',
           formatCurrency(g.importe),
           `${inq.apellido}, ${inq.nombre}`,
-          formatCurrency(g.importe / divisor),
+          formatCurrency(g.importe / divisorGasto(g, divisor)),
         ])
       ),
       columnStyles: {

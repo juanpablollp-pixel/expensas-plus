@@ -3,7 +3,7 @@ import { db } from '../db'
 import { generateHistorialPDF } from '../utils/pdfGenerator'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Popup from '../components/Popup'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto } from '../utils/helpers'
 
 export default function Historial() {
   const [periodos, setPeriodos] = useState([])
@@ -101,7 +101,7 @@ export default function Historial() {
                   <div className="table-scroll">
                     <table className="preview-table">
                       <thead>
-                        <tr><th>Servicio</th><th>Empresa</th><th>Factura</th><th>Vencimiento</th><th>Importe Total</th><th>Por Unidad</th></tr>
+                        <tr><th>Servicio</th><th>Empresa</th><th>Factura</th><th>Vencimiento</th><th>Importe Total</th><th>Unidades</th><th>Por Unidad</th></tr>
                       </thead>
                       <tbody>
                         {detalle.gastos.filter(g => g.tipo === 'general').map(g => (
@@ -111,7 +111,8 @@ export default function Historial() {
                             <td>{g.numeroFactura || '-'}</td>
                             <td>{g.fechaVencimiento ? new Date(g.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '-'}</td>
                             <td>{formatCurrency(g.importe)}</td>
-                            <td><strong>{formatCurrency(g.importe / detalle.activeCount)}</strong></td>
+                            <td>{divisorGasto(g, detalle.activeCount)}</td>
+                            <td><strong>{formatCurrency(g.importe / divisorGasto(g, detalle.activeCount))}</strong></td>
                           </tr>
                         ))}
                       </tbody>

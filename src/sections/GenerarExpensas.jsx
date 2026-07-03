@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import { generateInquilinoPDF } from '../utils/pdfGenerator'
-import { periodoLabel, formatCurrency } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 
 export default function GenerarExpensas() {
@@ -54,7 +54,7 @@ export default function GenerarExpensas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo])
 
-  const totalGeneral = preview ? preview.generales.reduce((s, g) => s + Number(g.importe) / preview.totalInqs, 0) : 0
+  const totalGeneral = preview ? preview.generales.reduce((s, g) => s + Number(g.importe) / divisorGasto(g, preview.totalInqs), 0) : 0
   const totalParticular = preview ? preview.particulares.reduce((s, g) => s + Number(g.importe), 0) : 0
 
   return (
@@ -121,8 +121,8 @@ export default function GenerarExpensas() {
                             <td>{g.servicio}</td>
                             <td>{g.empresa}</td>
                             <td>{formatCurrency(g.importe)}</td>
-                            <td>{preview.totalInqs}</td>
-                            <td><strong>{formatCurrency(g.importe / preview.totalInqs)}</strong></td>
+                            <td>{divisorGasto(g, preview.totalInqs)}</td>
+                            <td><strong>{formatCurrency(g.importe / divisorGasto(g, preview.totalInqs))}</strong></td>
                           </tr>
                         ))}
                       </tbody>
