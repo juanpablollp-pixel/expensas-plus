@@ -2,7 +2,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { PDF_FOOTER as PDF_FOOTER_DEFAULT } from '../pdfConfig'
 import { db, getAdminConfig } from '../db'
-import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from './helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo, aplicaAInquilino } from './helpers'
 
 // Tailwind slate palette — exact hex values
 const S = {
@@ -445,7 +445,7 @@ export async function generateHistorialPDF(periodo, gastos, inquilinos, servicio
       startY: currentY,
       head: [['Servicio', 'Empresa', 'Factura N°', 'Vencimiento', 'Total', 'Inquilino', 'Su Parte']],
       body: generales.flatMap(g =>
-        inquilinos.filter(inq => activoEnPeriodo(inq, periodo)).map(inq => [
+        inquilinos.filter(inq => activoEnPeriodo(inq, periodo) && aplicaAInquilino(g, inq.id)).map(inq => [
           serviciosMap[g.servicioId] || g.servicioId,
           toTitleCase(g.empresa),
           g.numeroFactura || '-',

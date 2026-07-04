@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { db } from '../db'
 import { generateInquilinoPDF } from '../utils/pdfGenerator'
-import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo, aplicaAInquilino } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 
 export default function GenerarExpensas() {
@@ -32,7 +32,7 @@ export default function GenerarExpensas() {
     const allGastos = await db.gastos.where('periodo').equals(periodo).toArray()
     const totalInqs = await db.inquilinos.filter(i => activoEnPeriodo(i, periodo)).count() || 1
     const generales = allGastos
-      .filter(g => g.tipo === 'general')
+      .filter(g => g.tipo === 'general' && aplicaAInquilino(g, inq.id))
       .map(g => ({ ...g, servicio: serviciosMap[g.servicioId] || '?' }))
     const particulares = allGastos
       .filter(g => g.tipo === 'particular' && g.inquilinoId === inq.id)
