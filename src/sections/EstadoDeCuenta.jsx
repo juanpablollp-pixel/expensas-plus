@@ -68,6 +68,7 @@ export default function EstadoDeCuenta() {
   const [editPago, setEditPago] = useState(null)        // periodo cuyo pago se corrige
   const [montoEditPago, setMontoEditPago] = useState('')
   const [fechaEditPago, setFechaEditPago] = useState('')
+  const [expandido, setExpandido] = useState(null)       // tarjeta abierta (null = la más reciente)
   const [popup, setPopup] = useState(null)
   const [generando, setGenerando] = useState(false)
 
@@ -139,6 +140,7 @@ export default function EstadoDeCuenta() {
 
   async function handleSelectInq(inq) {
     setSelected(inq)
+    setExpandido(null)
     await loadDetalle(inq)
     setScreen('detalle')
   }
@@ -309,83 +311,100 @@ export default function EstadoDeCuenta() {
         )}
       </div>
 
-      {/* Tabla de períodos */}
+      {/* Tarjetas de períodos */}
       {periodos.length === 0 ? (
         <div className="empty-state"><p>No hay períodos registrados para este inquilino.</p></div>
       ) : (
-        <div className="table-scroll">
-          <table className="preview-table ec-table">
-            <thead>
-              <tr>
-                <th>Período</th>
-                <th>Expensas</th>
-                <th>Alquiler</th>
-                <th>Mora</th>
-                <th>Total</th>
-                <th>Estado</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {periodos.map(p => {
-                const pago = pagosMap[p]
-                const { expensas, alquiler, mora, tiempoMora, estado, total, saldo } = filaPeriodo(p)
-                void tick // lee tick para re-render automático
+        <div className="ec-cards">
+          {periodos.map(p => {
+            const pago = pagosMap[p]
+            const { expensas, alquiler, mora, tiempoMora, estado, total, totalPagado, saldo } = filaPeriodo(p)
+            void tick // lee tick para re-render automático
 
-                return (
-                  <tr key={p}>
-                    <td><strong>{periodoLabel(p)}</strong></td>
-                    <td>{formatCurrency(expensas)}</td>
-                    <td>{formatCurrency(alquiler)}</td>
-                    <td>
-                      {estado === 'impago' && mora > 0 ? (
-                        <span className="ec-mora-cell">
-                          {formatCurrency(mora)}
-                          <span className="ec-mora-tiempo">{tiempoMora}</span>
+            // Sin interacción del usuario (null), el período más reciente arranca expandido
+            const abierto = (expandido ?? periodos[0]) === p
+            const badgeClass =
+              estado === 'pagado'  ? 'estado-pagado'  :
+              estado === 'parcial' ? 'estado-parcial' :
+              estado === 'impago'  ? 'estado-impago'  : 'estado-pendiente'
+            const badgeLabel = estado === 'pagado' ? 'Pagado' : estado === 'parcial' ? 'Parcial' : estado === 'impago' ? 'Impago' : 'Pendiente'
+
+            return (
+              <div key={p} className={`ec-card${abierto ? ' open' : ''}`}>
+                <button
+                  className="ec-card-head"
+                  onClick={() => setExpandido(abierto ? '' : p)}
+                  aria-expanded={abierto}
+                >
+                  <span className="ec-card-periodo">{periodoLabel(p)}</span>
+                  {!abierto && <span className="ec-card-total-mini">{formatCurrency(total)}</span>}
+                  <span className={`estado-badge ${badgeClass}`}>{badgeLabel}</span>
+                  <span className="ec-card-chevron" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </span>
+                </button>
+
+                {abierto && (
+                  <div className="ec-card-body">
+                    <div className="ec-row">
+                      <span className="ec-row-label">Expensas</span>
+                      <span className="ec-row-amt">{formatCurrency(expensas)}</span>
+                    </div>
+                    <div className="ec-row">
+                      <span className="ec-row-label">Alquiler</span>
+                      <span className="ec-row-amt">{formatCurrency(alquiler)}</span>
+                    </div>
+                    {mora > 0 && (
+                      <div className="ec-row">
+                        <span className="ec-row-label">
+                          Mora{estado === 'impago' && tiempoMora ? <small> · {tiempoMora}</small> : null}
                         </span>
-                      ) : estado === 'pagado' && mora > 0 ? (
-                        <span className="ec-mora-pagada">{formatCurrency(mora)}</span>
-                      ) : '—'}
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(total)}</strong>
-                      {estado === 'parcial' && (
-                        <span className="ec-mora-tiempo" style={{ display: 'block' }}>Resta {formatCurrency(saldo)}</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`estado-badge ${
-                        estado === 'pagado'   ? 'estado-pagado'  :
-                        estado === 'parcial'  ? 'estado-parcial' :
-                        estado === 'impago'   ? 'estado-impago'  : 'estado-pendiente'
-                      }`}>
-                        {estado === 'pagado' ? 'Pagado' : estado === 'parcial' ? 'Parcial' : estado === 'impago' ? 'Impago' : 'Pendiente'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="ec-acciones">
-                        {(estado === 'pendiente' || estado === 'impago' || estado === 'parcial') && (
-                          <button className="btn-primary btn-sm" onClick={() => setConfirmPago(p)}>
-                            Marcar Pagado
-                          </button>
-                        )}
-                        {estado === 'pagado' && pago?.fechaPago && (
-                          <span className="ec-fecha-pago">
-                            {new Date(pago.fechaPago).toLocaleDateString('es-AR')}
-                          </span>
-                        )}
-                        {pago && (
-                          <button className="btn-secondary btn-sm" onClick={() => abrirEditarPago(p)}>
-                            Editar pago
-                          </button>
-                        )}
+                        <span className="ec-row-amt">{formatCurrency(mora)}</span>
                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )}
+                    {estado === 'parcial' && (
+                      <>
+                        <div className="ec-row">
+                          <span className="ec-row-label">Abonado</span>
+                          <span className="ec-row-amt">{formatCurrency(totalPagado)}</span>
+                        </div>
+                        <div className="ec-row">
+                          <span className="ec-row-label">Resta</span>
+                          <span className="ec-row-amt ec-row-amt--danger">{formatCurrency(saldo)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="ec-card-total">
+                      <span>Total</span>
+                      <strong>{formatCurrency(total)}</strong>
+                    </div>
+
+                    <div className="ec-card-actions">
+                      {estado === 'pagado' && pago?.fechaPago && (
+                        <span className="ec-fecha-pago">
+                          Pagado el {new Date(pago.fechaPago).toLocaleDateString('es-AR')}
+                        </span>
+                      )}
+                      {(estado === 'pendiente' || estado === 'impago' || estado === 'parcial') && (
+                        <button className="btn-primary btn-sm" onClick={() => setConfirmPago(p)}>
+                          Marcar Pagado
+                        </button>
+                      )}
+                      {pago && (
+                        <button className="btn-secondary btn-sm" onClick={() => abrirEditarPago(p)}>
+                          Editar pago
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
