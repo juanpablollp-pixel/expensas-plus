@@ -1053,20 +1053,115 @@ button { cursor: pointer; font-family: inherit; }
   font-weight: 600;
   color: var(--danger);
 }
-.ec-table { min-width: 560px; }
-.ec-mora-cell {
-  display: flex; flex-direction: column; gap: 2px;
-  color: var(--danger); font-weight: 600;
-}
-.ec-mora-tiempo { font-size: 11px; font-weight: 400; color: var(--text-muted); }
-.ec-mora-pagada { color: var(--text-muted); font-size: 13px; }
 .ec-fecha-pago  { font-size: 12px; color: var(--text-secondary); }
-.ec-acciones {
+
+/* ── Tarjetas de períodos (estado de cuenta) ── */
+.ec-cards {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  gap: 10px;
 }
+.ec-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.ec-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 14px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+}
+.ec-card-periodo {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--fw-bold);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.ec-card-total-mini {
+  font-weight: var(--fw-semibold);
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ec-card-chevron {
+  display: flex;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+.ec-card.open .ec-card-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ec-card-chevron { transition: none; }
+}
+.ec-card-body {
+  padding: 2px 14px 14px;
+  border-top: 1px solid var(--border-color);
+}
+.ec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+.ec-row:last-of-type { border-bottom: none; }
+.ec-row-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.ec-row-label small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.ec-row-amt {
+  font-weight: var(--fw-semibold);
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ec-row-amt--danger { color: var(--danger); }
+.ec-card-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  margin-top: 10px;
+}
+.ec-card-total span {
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ec-card-total strong {
+  font-size: 15px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.ec-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ec-card-actions .btn-primary { flex: 1; }
+.ec-card-actions .ec-fecha-pago { margin-right: auto; }
 .estado-pagado    { background: var(--success-soft); color: var(--success); }
 .estado-impago    { background: var(--danger-soft);  color: var(--danger);  }
 .estado-pendiente { background: var(--warning-soft); color: var(--warning); }
