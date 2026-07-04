@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { db } from '../db'
-import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo } from '../utils/helpers'
+import { periodoLabel, formatCurrency, divisorGasto, activoEnPeriodo, aplicaAInquilino } from '../utils/helpers'
 
 function diasHasta(fechaStr) {
   if (!fechaStr) return null
@@ -164,7 +164,7 @@ export default function Inicio() {
 
     const expensasDeInquilino = (inqId) => {
       const generales = gastosDelPeriodo
-        .filter(g => g.tipo === 'general')
+        .filter(g => g.tipo === 'general' && aplicaAInquilino(g, inqId))
         .reduce((s, g) => s + Number(g.importe || 0) / divisorGasto(g, countActivos), 0)
       const particulares = gastosDelPeriodo
         .filter(g => g.tipo === 'particular' && Number(g.inquilinoId) === Number(inqId))

@@ -6,7 +6,7 @@ import { periodoLabel, formatCurrency, activoEnPeriodo } from '../utils/helpers'
 import MonthPicker from '../components/MonthPicker'
 import DatePicker from '../components/DatePicker'
 
-const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '', divisor: '' }
+const EMPTY_GASTO = { fechaEmision: '', fechaVencimiento: '', empresa: '', importe: '', numeroFactura: '', inquilinoId: '', inquilinoIds: [] }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function CargarGastos() {
@@ -229,12 +229,17 @@ export default function CargarGastos() {
                     <strong>{g.empresa}</strong>
                     <span>${Number(g.importe).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                     {inq && <span className="inq-chip">{inq.apellido}, {inq.nombre}</span>}
-                    {g.tipo === 'general' && g.divisor > 0 && <span className="factura-chip">÷ {g.divisor} unidades</span>}
+                    {g.tipo === 'general' && Array.isArray(g.inquilinoIds) && g.inquilinoIds.length > 0 && (
+                      <span className="factura-chip">
+                        Sólo: {g.inquilinoIds.map(id => inquilinos.find(i => i.id === id)?.departamento || '?').join(', ')}
+                      </span>
+                    )}
+                    {g.tipo === 'general' && !g.inquilinoIds?.length && g.divisor > 0 && <span className="factura-chip">÷ {g.divisor} unidades</span>}
                     {g.numeroFactura && <span className="factura-chip">F#{g.numeroFactura}</span>}
                   </div>
                   <div className="card-actions">
                     <button className="btn-secondary btn-sm" onClick={() => {
-                      setForm({ ...g, importe: String(g.importe), divisor: g.divisor ? String(g.divisor) : '' })
+                      setForm({ ...g, importe: String(g.importe), inquilinoIds: Array.isArray(g.inquilinoIds) ? g.inquilinoIds : [] })
                       setEditingGastoId(g.id)
                       setStep(g.tipo === 'general' ? 'formGeneral' : 'formParticular')
                     }}>Editar</button>
@@ -279,6 +284,10 @@ export default function CargarGastos() {
         setPopup('La fecha de vencimiento no puede ser anterior a la fecha de emisión.')
         return
       }
+      if (!isParticular && form.inquilinoIds.length === 1) {
+        setPopup('Para asignar un cargo a una sola unidad usá la opción "Cargo Particular".')
+        return
+      }
       const data = {
         periodo,
         servicioId: selectedServicio.id,
@@ -289,7 +298,9 @@ export default function CargarGastos() {
         fechaVencimiento: form.fechaVencimiento,
         numeroFactura: form.numeroFactura,
         inquilinoId: isParticular ? parseInt(form.inquilinoId) : null,
-        divisor: !isParticular && parseInt(form.divisor) > 0 ? parseInt(form.divisor) : null
+        inquilinoIds: !isParticular && form.inquilinoIds.length >= 2 ? form.inquilinoIds : null,
+        // divisor numérico legado: se conserva sólo si no se eligieron unidades
+        divisor: !isParticular && !form.inquilinoIds.length && parseInt(form.divisor) > 0 ? parseInt(form.divisor) : null
       }
       if (editingGastoId) {
         await db.gastos.update(editingGastoId, data)
@@ -324,7 +335,7 @@ export default function CargarGastos() {
                     importe: String(g.importe ?? ''),
                     numeroFactura: g.numeroFactura || '',
                     inquilinoId: g.inquilinoId ? String(g.inquilinoId) : f.inquilinoId,
-                    divisor: g.divisor ? String(g.divisor) : f.divisor
+                    inquilinoIds: Array.isArray(g.inquilinoIds) && g.inquilinoIds.length ? [...g.inquilinoIds] : f.inquilinoIds
                   }))
                 }}
               >
@@ -373,20 +384,46 @@ export default function CargarGastos() {
             </div>
           </div>
 
-          {!isParticular && (
-            <div className="form-group">
-              <label>Dividir entre (unidades)</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={form.divisor}
-                onChange={e => setForm(f => ({ ...f, divisor: e.target.value }))}
-                placeholder={`Por defecto: ${inquilinos.filter(i => activoEnPeriodo(i, periodo)).length || 1} (inquilinos activos)`}
-              />
-              <p className="field-hint">Dejalo vacío para dividir entre todos los inquilinos activos.</p>
-            </div>
-          )}
+          {!isParticular && (() => {
+            const activos = inquilinos.filter(i => activoEnPeriodo(i, periodo))
+            const toggleUnidad = (id) => setForm(f => ({
+              ...f,
+              inquilinoIds: f.inquilinoIds.includes(id)
+                ? f.inquilinoIds.filter(x => x !== id)
+                : [...f.inquilinoIds, id]
+            }))
+            return (
+              <div className="form-group">
+                <label>Aplicar a unidades</label>
+                <p className="field-hint">
+                  Sin selección, el cargo se divide entre todos los inquilinos activos ({activos.length || 1}).
+                  Marcá 2 o más unidades para dividirlo sólo entre esas.
+                </p>
+                <div className="unidades-check-list">
+                  {activos.map(i => (
+                    <label key={i.id} className="unidad-check">
+                      <input
+                        type="checkbox"
+                        checked={form.inquilinoIds.includes(i.id)}
+                        onChange={() => toggleUnidad(i.id)}
+                      />
+                      <span>{i.departamento || '?'} — {i.apellido}, {i.nombre}</span>
+                    </label>
+                  ))}
+                </div>
+                {form.inquilinoIds.length === 1 && (
+                  <p className="field-hint field-hint--warning">
+                    ⚠️ Para asignar un cargo a una sola unidad usá la opción "Cargo Particular".
+                  </p>
+                )}
+                {form.inquilinoIds.length >= 2 && (
+                  <p className="field-hint">
+                    El importe se dividirá entre {form.inquilinoIds.length} unidades.
+                  </p>
+                )}
+              </div>
+            )
+          })()}
 
           {isParticular && (
             <div className="form-group">

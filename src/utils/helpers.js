@@ -10,9 +10,17 @@ export function formatCurrency(n) {
   return `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// Divisor de un cargo general: la cantidad personalizada cargada en el gasto,
-// o la cantidad de inquilinos activos como valor por defecto
+// ¿Un cargo general aplica a este inquilino? Si el gasto tiene unidades
+// seleccionadas, sólo aplica a esas; si no, aplica a todos
+export function aplicaAInquilino(gasto, inqId) {
+  if (!Array.isArray(gasto?.inquilinoIds) || gasto.inquilinoIds.length === 0) return true
+  return gasto.inquilinoIds.includes(Number(inqId))
+}
+
+// Divisor de un cargo general: la cantidad de unidades seleccionadas, el
+// divisor numérico legado, o la cantidad de inquilinos activos por defecto
 export function divisorGasto(gasto, totalActivos) {
+  if (Array.isArray(gasto?.inquilinoIds) && gasto.inquilinoIds.length > 0) return gasto.inquilinoIds.length
   const d = Number(gasto?.divisor)
   return d > 0 ? d : (totalActivos || 1)
 }
