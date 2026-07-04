@@ -112,23 +112,18 @@ export default function GenerarExpensas() {
               {preview.generales.length > 0 && (
                 <>
                   <h4 className="table-section-title general">Cargos Generales</h4>
-                  <div className="table-scroll">
-                    <table className="preview-table">
-                      <thead>
-                        <tr><th>Servicio</th><th>Empresa</th><th>Total</th><th>Unidades</th><th>Su parte</th></tr>
-                      </thead>
-                      <tbody>
-                        {preview.generales.map(g => (
-                          <tr key={g.id}>
-                            <td>{g.servicio}</td>
-                            <td>{g.empresa}</td>
-                            <td>{formatCurrency(g.importe)}</td>
-                            <td>{divisorGasto(g, preview.totalInqs)}</td>
-                            <td><strong>{formatCurrency(g.importe / divisorGasto(g, preview.totalInqs))}</strong></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="cargo-list">
+                    {preview.generales.map(g => (
+                      <div key={g.id} className="cargo-row">
+                        <span className="cargo-svc">{g.servicio}</span>
+                        <span className="cargo-amt">{formatCurrency(g.importe / divisorGasto(g, preview.totalInqs))}</span>
+                        <span className="cargo-emp">{g.empresa}</span>
+                      </div>
+                    ))}
+                    <div className="cargo-subtotal">
+                      <span>Subtotal generales</span>
+                      <strong>{formatCurrency(totalGeneral)}</strong>
+                    </div>
                   </div>
                 </>
               )}
@@ -136,21 +131,18 @@ export default function GenerarExpensas() {
               {preview.particulares.length > 0 && (
                 <>
                   <h4 className="table-section-title particular">Cargos Particulares</h4>
-                  <div className="table-scroll">
-                    <table className="preview-table">
-                      <thead>
-                        <tr><th>Servicio</th><th>Empresa</th><th>Importe</th></tr>
-                      </thead>
-                      <tbody>
-                        {preview.particulares.map(g => (
-                          <tr key={g.id}>
-                            <td>{g.servicio}</td>
-                            <td>{g.empresa}</td>
-                            <td><strong>{formatCurrency(g.importe)}</strong></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="cargo-list">
+                    {preview.particulares.map(g => (
+                      <div key={g.id} className="cargo-row">
+                        <span className="cargo-svc">{g.servicio}</span>
+                        <span className="cargo-amt">{formatCurrency(g.importe)}</span>
+                        <span className="cargo-emp">{g.empresa}</span>
+                      </div>
+                    ))}
+                    <div className="cargo-subtotal">
+                      <span>Subtotal particulares</span>
+                      <strong>{formatCurrency(totalParticular)}</strong>
+                    </div>
                   </div>
                 </>
               )}
